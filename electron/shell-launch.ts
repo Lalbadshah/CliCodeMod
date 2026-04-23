@@ -38,8 +38,10 @@ export function buildLaunchArgs(
 
 function shellArgsFor(kind: ShellKind): string[] {
   switch (kind) {
-    // PART_A_BASH_ARGS
-    // PART_B_ZSH_ARGS
+    case "bash":
+      return ["-il"];
+    case "zsh":
+      return ["-il"];
     default:
       return [];
   }
@@ -47,8 +49,10 @@ function shellArgsFor(kind: ShellKind): string[] {
 
 function shellEnvFor(kind: ShellKind, binary: string): Record<string, string> {
   switch (kind) {
-    // PART_A_BASH_ENV
-    // PART_B_ZSH_ENV
+    case "bash":
+      return { SHELL: binary };
+    case "zsh":
+      return { SHELL: binary };
     default:
       return {};
   }
