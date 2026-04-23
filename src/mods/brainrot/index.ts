@@ -11,6 +11,7 @@ import { describeMode } from "../shared/mode";
 import {
   buildBrainrotCaption,
   BRAINROT_SYSTEM,
+  BRAINROT_BUBBLE_SYSTEM,
   buildToolAlias,
   buildBrainrotToolLine,
   buildBrainrotMarqueeTick,
@@ -21,6 +22,7 @@ import {
 } from "../../llm/prompts";
 import { formatMemeContext, sampleMemeContext } from "../../llm/meme-context";
 import type { StreamHandle } from "../../llm/client";
+import type { LlmStatus } from "../../llm/types";
 
 // Feature flag — flip to `false` to revert to the plain-prompt bubble (no
 // injected meme dictionary). The meme-context module itself is independent
@@ -159,7 +161,33 @@ export function createBrainrotMod(): Mod {
       version.className = "br-version";
       version.textContent = "v 4.20.69 · slay edition";
 
-      titlebar.append(dots, title, modePill, version);
+      const modelStatus = document.createElement("div");
+      modelStatus.className = "br-model-status is-offline";
+      modelStatus.innerHTML =
+        `<span class="br-ms-dot"></span>` +
+        `<span class="br-ms-label">model offline fr</span>`;
+      const modelLabel = modelStatus.querySelector(".br-ms-label") as HTMLElement;
+
+      titlebar.append(dots, title, modePill, modelStatus, version);
+
+      const renderModelStatus = (s: LlmStatus): void => {
+        const cls = !s.enabled || s.error
+          ? "is-offline"
+          : s.loading
+            ? "is-loading"
+            : s.available
+              ? "is-live"
+              : "is-offline";
+        modelStatus.className = `br-model-status ${cls}`;
+        const prettyId = s.activeModelId
+          ? s.activeModelId.replace(/[-_]/g, " ")
+          : "local ai";
+        const label =
+          cls === "is-live"    ? `${prettyId} locked in 🔒` :
+          cls === "is-loading" ? "loading model…" :
+                                 "model offline fr";
+        writeCell(modelLabel, label);
+      };
 
       // Session snapshot referenced by multiple renderers below — declared
       // up-front so the renderMarquee closure doesn't hit the TDZ when it's
@@ -1139,37 +1167,47 @@ export function createBrainrotMod(): Mod {
         return next;
       };
 
-      // Snapshot of the visible viewport only — not scrollback. Trailing
-      // blank rows are trimmed so the LLM doesn't waste context on empty
-      // space after a short prompt.
-      const readVisibleScreen = (): string => {
+      // Walk the entire xterm buffer (scrollback + viewport) so the bubble's
+      // punchline can land on session history, not just the visible rows.
+      // Cap the tail so huge sessions don't blow the model context.
+      const TERMINAL_TEXT_CAP = 4000;
+      const readTerminalText = (): string => {
         try {
           const term = xt.term;
           const buf = term.buffer.active;
-          const baseY = buf.baseY;
-          const rows = term.rows;
+          const totalRows = buf.baseY + term.rows;
           const lines: string[] = [];
-          for (let i = 0; i < rows; i++) {
-            const line = buf.getLine(baseY + i);
+          for (let i = 0; i < totalRows; i++) {
+            const line = buf.getLine(i);
             lines.push(line?.translateToString(true) ?? "");
           }
           while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-          return lines.join("\n");
+          const joined = lines.join("\n");
+          return joined.length > TERMINAL_TEXT_CAP
+            ? "…" + joined.slice(-TERMINAL_TEXT_CAP)
+            : joined;
         } catch {
           return "";
         }
       };
 
-      const cleanBubble = (raw: string): string =>
-        raw
+      const cleanBubble = (raw: string): string => {
+        const base = raw
+          .replace(/<\/?think>[\s\S]*?<\/?think>/gi, "")
           .replace(/<\/?think>/gi, "")
           .trim()
           .replace(/^["'`]|["'`]$/g, "")
           .replace(/\s+/g, " ")
-          .split(/[\n.!?]/)[0]
+          .split(/\n/)[0]
           .trim()
-          .toLowerCase()
-          .slice(0, 60);
+          .toLowerCase();
+        // Keep first sentence (up to and including terminal punctuation) if
+        // present; otherwise keep the whole line. Cap length so the bubble
+        // never blows out.
+        const m = base.match(/^[^.!?]+[.!?]/);
+        const one = (m ? m[0] : base).trim();
+        return one.slice(0, 180);
+      };
 
       let bubbleStream: StreamHandle | null = null;
       let bubbleTimer: number | null = null;
@@ -1195,16 +1233,16 @@ export function createBrainrotMod(): Mod {
         if (llm?.isAvailable() && info) {
           bubbleStream?.cancel();
           let buf = "";
-          const screen = readVisibleScreen();
+          const transcript = readTerminalText();
           // Fresh random sample each tick so the model isn't spoon-fed the
           // same vocab every call — keeps outputs from calcifying.
           const memeContext = INCLUDE_MEME_CONTEXT
             ? formatMemeContext(sampleMemeContext(MEME_SAMPLE_SIZE))
             : undefined;
           bubbleStream = llm.stream(
-            buildBrainrotBubble(bubbleText, info, screen, memeContext),
+            buildBrainrotBubble(bubbleText, info, transcript, memeContext),
             (tok) => { buf += tok; },
-            { systemPrompt: BRAINROT_SYSTEM, maxTokens: 128, temperature: 1.25, stop: ["\n\n"] },
+            { systemPrompt: BRAINROT_BUBBLE_SYSTEM, maxTokens: 220, temperature: 1.15, stop: ["\n\n"] },
           );
           trackStream(bubbleStream);
           bubbleStream.text
@@ -1239,6 +1277,12 @@ export function createBrainrotMod(): Mod {
         refreshCaption(info);
       });
 
+      let unsubLlm: (() => void) | null = null;
+      if (bus.llm) {
+        renderModelStatus(bus.llm.getStatus());
+        unsubLlm = bus.llm.onStatusChange(renderModelStatus);
+      }
+
       scheduleBrain();
       scheduleBubble();
 
@@ -1267,6 +1311,7 @@ export function createBrainrotMod(): Mod {
         toolFeed.dispose();
         typingDisp.dispose();
         unsub();
+        unsubLlm?.();
         activeCaption?.cancel();
         session.dispose();
         xt.dispose();

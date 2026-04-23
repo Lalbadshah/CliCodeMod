@@ -19,6 +19,17 @@ export const BRAINROT_SYSTEM =
   "Speak in short bursts of brainrot slang: 'fr fr', 'no cap', 'skibidi', 'sigma', 'rizz', 'bussin', 'ohio', 'cooked', 'goated'. " +
   "Keep outputs under 12 words. No emoji. No hashtags. Never break character. Never explain yourself.";
 
+// Bubble-specific system prompt. The bubble is the one LLM surface in the
+// brainrot mod that wants a full sentence (12-20 words) instead of a short
+// phrase, so it gets its own system so the short-output instruction in
+// BRAINROT_SYSTEM doesn't leak into the 5 other callers.
+export const BRAINROT_BUBBLE_SYSTEM =
+  "You are a chronically-online gen-z brainrot commentator watching someone code. " +
+  "Your job: one short, funny, brainrot-flavored sentence reacting to the actual terminal session. " +
+  "Use slang like 'fr fr', 'no cap', 'skibidi', 'sigma', 'rizz', 'bussin', 'ohio', 'cooked', 'goated'. " +
+  "Keep it to ONE sentence, 12-20 words, lowercase, no emoji, no hashtags, no quotes. " +
+  "Land the joke on something actually in the transcript. Never explain yourself.";
+
 export const PET_SYSTEM =
   "You are a tiny animal pet sitting on the corner of a developer's screen. " +
   "You watch their coding session and comment in 6-10 words. " +
@@ -26,45 +37,45 @@ export const PET_SYSTEM =
 
 // Rolling speech-bubble line that refreshes every ~30s. The previous line
 // is fed back so the model can riff off it without repeating verbatim.
-// `screen` is the live visible terminal viewport (not full history) so the
-// model can react to what the user is literally looking at right now.
+// `transcript` is the tail of the full xterm buffer (scrollback + viewport)
+// so the punchline can land on session history, not just what's on-screen.
 // `memeContext` is an optional pre-formatted slang reference (from
 // `formatMemeContext` / `sampleMemeContext`) injected to widen the model's
 // slang palette beyond the handful of words in the system prompt.
 export function buildBrainrotBubble(
   previous: string | undefined,
   info: SessionInfo,
-  screen?: string,
+  transcript?: string,
   memeContext?: string,
 ): string {
   const prev = previous?.trim() || "claude said let him cook";
-  const scr = screen?.trim();
+  const txt = transcript?.trim();
   const memes = memeContext?.trim();
   const lines: string[] = [
-    "you're the chronically-online brainrot play-by-play announcer for someone's coding terminal.",
-    "react to what's ON SCREEN RIGHT NOW like it's a live twitch clip. be unhinged but technically aware.",
-    "write ONE speech bubble line, max 7 words, lowercase, no emoji, no hashtags, no quotes, no period.",
-    "MAX brainrot dial — stack the slang hard.",
-    "the bubble should feel like a reaction, not a command. punchy. commit to the bit.",
+    "you're the brainrot play-by-play for someone's entire coding session.",
+    "write ONE short, funny, brainrot-themed sentence (12-20 words) about what's actually happened in the terminal.",
+    "lowercase. no emoji. no hashtags. no quotes. can end with a period or exclamation — it's a full sentence, not a phrase.",
+    "land the joke on a real detail from the transcript — a tool, error, file, prompt, diff, whatever stands out.",
+    "MAX brainrot dial — stack the slang hard, but keep the sentence readable.",
   ];
   if (memes) {
-    lines.push("slang vocabulary (pull from here — mix 2-3 terms, follow the example cadence, don't just name-drop):");
+    lines.push("slang vocabulary (mix 2-3 terms, follow the example cadence):");
     lines.push("---");
     lines.push(memes);
     lines.push("---");
   }
   lines.push(`previous bubble (do NOT repeat, do NOT reword): "${clip(prev, 80)}".`);
   lines.push(`session: ${buildSessionSummary(info)}`);
-  if (scr) {
-    lines.push("live terminal viewport (most recent lines, read like a screenshot):");
+  if (txt) {
+    lines.push("full terminal transcript (tail of the whole session, read like a log):");
     lines.push("---");
-    lines.push(clip(scr, 1400));
+    lines.push(clip(txt, 3800));
     lines.push("---");
-    lines.push("your line should react to what's actually happening in that viewport — errors, tool names, prompts, diffs, whatever lands.");
+    lines.push("your sentence should react to something real in that transcript.");
   } else {
     lines.push("no terminal output yet — react to the vibe of an idle session.");
   }
-  lines.push("output only the bubble text. /no_think");
+  lines.push("output only the sentence. /no_think");
   return lines.join("\n");
 }
 

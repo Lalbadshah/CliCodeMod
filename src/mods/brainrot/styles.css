@@ -104,6 +104,67 @@
   white-space: nowrap;
 }
 
+/* Model connection pill — mirrors LlmStatus live (offline / loading / live). */
+.br-model-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: #1a1a2a;
+  color: #e6f0ff;
+  font: 700 10.5px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.4px;
+  text-transform: lowercase;
+  box-shadow: 2px 2px 0 rgba(10, 10, 20, 0.35);
+  white-space: nowrap;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.br-ms-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+  flex: 0 0 auto;
+}
+.br-ms-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.br-model-status.is-live { background: color-mix(in srgb, var(--lime) 22%, #1a1a2a); }
+.br-model-status.is-live .br-ms-dot {
+  background: var(--lime);
+  animation: br-ms-pulse 1.3s ease-in-out infinite;
+}
+.br-model-status.is-loading { background: color-mix(in srgb, var(--yellow) 22%, #1a1a2a); }
+.br-model-status.is-loading .br-ms-dot {
+  background: var(--yellow);
+  animation: br-ms-blink 0.6s steps(2, end) infinite;
+}
+.br-model-status.is-offline {
+  background: #1a1a2a;
+  color: #8a8a95;
+}
+
+@keyframes br-ms-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--lime) 70%, transparent);
+  }
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--lime) 0%, transparent);
+  }
+}
+@keyframes br-ms-blink { to { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .br-model-status .br-ms-dot { animation: none; }
+}
+
 /* Mode pill (plan / auto-accept / yolo / default) */
 .br-mode-pill {
   display: inline-flex;
@@ -444,17 +505,20 @@
   top: 18px;
   right: 24px;
   z-index: 9;
+  max-width: min(60%, 520px);
   background: var(--lime);
   padding: 6px 12px;
   border: 2.5px solid var(--ink);
   box-shadow: 4px 4px 0 var(--ink);
   transform: rotate(4deg);
   font-family: var(--comic);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.35;
   font-weight: 700;
   color: var(--ink);
   pointer-events: none;
   overflow: hidden;
+  word-break: break-word;
 }
 
 /* Inner wrapper so entry animations don't fight the parent tilt. */
