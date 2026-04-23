@@ -1,0 +1,510 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+.oracle-shell {
+  --parchment: #f3ecd8;
+  --parchment-deep: #e9dfc1;
+  --parchment-fold: #d9c89a;
+  --ink: #2a1e0e;
+  --ink-soft: #5a4528;
+  --ink-mute: #8c7447;
+  --gold: #b88a3a;
+  --gold-deep: #8a6820;
+  --ruby: #7d2220;
+
+  position: fixed;
+  inset: 0;
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: "Cormorant Garamond", "EB Garamond", Garamond, Georgia, serif;
+  font-size: 15px;
+  display: grid;
+  grid-template-rows: 78px 1fr 78px 34px;
+  overflow: hidden;
+}
+
+/* parchment noise + subtle fold gradients */
+.oracle-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(184, 138, 58, 0.14), transparent 60%),
+    radial-gradient(ellipse at 85% 80%, rgba(122, 89, 36, 0.12), transparent 55%),
+    radial-gradient(ellipse at 50% 100%, rgba(42, 30, 14, 0.08), transparent 60%);
+  mix-blend-mode: multiply;
+}
+.oracle-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.12 0 0 0 0 0.05 0 0 0 0.18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+}
+
+/* ── HEADER ──────────────────────────────────────────────── */
+.oracle-header {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 14px 24px 10px;
+  border-bottom: 1px solid rgba(184, 138, 58, 0.45);
+  gap: 18px;
+}
+
+.oracle-header-left { justify-self: start; }
+
+.oracle-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.oracle-dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-deep);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 251, 238, 0.8), rgba(184, 138, 58, 0.35) 55%, transparent 90%);
+}
+.oracle-dots span:nth-child(1) { border-color: #7a5a22; }
+.oracle-dots span:nth-child(2) { border-color: #9a7a32; }
+.oracle-dots span:nth-child(3) { border-color: #b88a3a; }
+
+.oracle-header-center {
+  text-align: center;
+  font-family: "Cinzel", serif;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.oracle-title {
+  font-size: 28px;
+  letter-spacing: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
+  margin-left: 11px; /* optical balance for letter-spacing */
+}
+.oracle-title .star { color: var(--gold); font-size: 18px; position: relative; top: -3px; }
+.oracle-subtitle {
+  font-size: 9px;
+  letter-spacing: 6px;
+  color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+.oracle-header-right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  font-family: "Cinzel", serif;
+}
+.oracle-luna {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--ink-soft);
+}
+.oracle-luna-label {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+.oracle-luna-date {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.oracle-moon-phase {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fffbee 0%, #f0d98c 55%, var(--gold) 100%);
+  box-shadow: inset -4px 0 0 var(--parchment), 0 0 6px rgba(240, 217, 140, 0.4);
+  border: 1px solid var(--gold-deep);
+}
+
+/* ── BODY (three columns: grimoire · main · window) ──────── */
+.oracle-body {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 210px 1fr 380px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ─── DOSSIER SIDEBAR ─── */
+.oracle-dossier {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 18px 16px 12px;
+  border-right: 1px solid rgba(184, 138, 58, 0.35);
+  background: linear-gradient(180deg, rgba(184, 138, 58, 0.04), transparent 40%, rgba(184, 138, 58, 0.05));
+}
+.oracle-dossier-head {
+  font-family: "Cinzel", serif;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--gold-deep);
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(184, 138, 58, 0.35);
+  line-height: 1.4;
+  position: relative;
+}
+.oracle-dossier-head .flourish {
+  color: var(--gold);
+  font-size: 12px;
+  margin-right: 4px;
+  opacity: 0.8;
+}
+
+.oracle-dossier-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.oracle-dossier-list::-webkit-scrollbar { width: 3px; }
+.oracle-dossier-list::-webkit-scrollbar-thumb { background: rgba(184, 138, 58, 0.4); }
+
+.oracle-dossier-row {
+  padding: 8px 8px 8px 10px;
+  border-bottom: 1px solid rgba(184, 138, 58, 0.2);
+  line-height: 1.2;
+  color: var(--ink-soft);
+  position: relative;
+  margin: 0;
+}
+.oracle-dossier-row .line-kicker {
+  font-family: "Cinzel", serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--gold-deep);
+  margin: 0;
+}
+.oracle-dossier-row .line-title {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink);
+  margin: 1px 0 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.oracle-dossier-row.is-active {
+  background: linear-gradient(90deg, rgba(184, 138, 58, 0.16), rgba(184, 138, 58, 0.02) 80%);
+  border-left: 2px solid var(--gold);
+  padding-left: 8px;
+}
+.oracle-dossier-row.is-active .line-kicker { color: var(--ruby); }
+.oracle-dossier-row.is-empty { opacity: 0.45; }
+.oracle-dossier-row.is-empty .line-title { font-style: normal; color: var(--ink-mute); }
+
+/* astral readings at bottom of grimoire */
+.oracle-astral {
+  padding-top: 12px;
+  border-top: 1px dashed rgba(184, 138, 58, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.oracle-astral-row {
+  display: grid;
+  grid-template-columns: 20px auto auto 1fr;
+  align-items: baseline;
+  gap: 6px;
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.oracle-astral-row .glyph {
+  color: var(--gold);
+  font-size: 14px;
+  font-style: normal;
+  text-align: center;
+}
+.oracle-astral-row .name { color: var(--ink-soft); }
+.oracle-astral-row .sep { color: var(--gold); opacity: 0.6; }
+.oracle-astral-row .val {
+  color: var(--ink);
+  font-style: normal;
+  font-family: "Cinzel", serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+  justify-self: end;
+}
+
+/* ─── MAIN / terminal column ─── */
+.oracle-main {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 26px 14px;
+  overflow: hidden;
+}
+
+.oracle-term-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  color: var(--ruby);
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  padding-bottom: 10px;
+  position: relative;
+  z-index: 3;
+}
+.oracle-term-header .rail {
+  color: var(--gold);
+  font-style: normal;
+  opacity: 0.8;
+  letter-spacing: 2px;
+}
+.oracle-term-header .voice {
+  color: var(--ruby);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.oracle-term-header .voice.is-title {
+  color: var(--ink);
+  font-style: italic;
+  font-weight: 600;
+}
+
+.oracle-term-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  isolation: isolate;
+  z-index: 2;
+  /* No hard frame — the terminal sits on the parchment directly. */
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(184, 138, 58, 0.1), transparent 60%),
+    radial-gradient(ellipse at 90% 100%, rgba(122, 89, 36, 0.08), transparent 55%);
+}
+
+/* subtle grain layer over the terminal area */
+.oracle-term-host::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.4;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.12 0 0 0 0 0.05 0 0 0 0.22 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");
+  mix-blend-mode: multiply;
+}
+.oracle-term-host::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 220, 140, 0.1), transparent 60%),
+    radial-gradient(ellipse at 50% 60%, transparent 70%, rgba(42, 30, 14, 0.16) 100%);
+  mix-blend-mode: multiply;
+  animation: oracle-candle 6.2s ease-in-out infinite;
+}
+
+.oracle-term-host .xterm { height: 100%; position: relative; z-index: 5; }
+.oracle-term-host .xterm-viewport { background-color: transparent !important; }
+.oracle-term-host .xterm-screen {
+  text-shadow:
+    0 0 0.4px rgba(42, 30, 14, 0.55),
+    0 0 2px rgba(138, 104, 32, 0.18);
+}
+.oracle-term-host .xterm-rows { filter: contrast(1.02); }
+.oracle-term-host .xterm-cursor-layer { filter: drop-shadow(0 0 3px rgba(184, 138, 58, 0.6)); }
+.oracle-term-host .xterm-viewport::-webkit-scrollbar { width: 4px; }
+.oracle-term-host .xterm-viewport::-webkit-scrollbar-thumb { background: rgba(184,138,58,0.4); border-radius: 3px; }
+
+@keyframes oracle-candle {
+  0%, 100% { opacity: 1; }
+  45%      { opacity: 0.92; }
+  55%      { opacity: 0.97; }
+}
+
+/* SOLVE · COAGULA watermark in bottom-left of main */
+.oracle-solve-watermark {
+  position: absolute;
+  left: -40px;
+  bottom: -40px;
+  width: 320px;
+  height: 320px;
+  pointer-events: none;
+  z-index: 1;
+  color: var(--ink);
+  opacity: 0.09;
+}
+.oracle-solve-watermark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  animation: oracle-solve-orbit 180s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes oracle-solve-orbit { to { transform: rotate(360deg); } }
+
+/* ─── WINDOW COLUMN (arched night-sky window) ─── */
+.oracle-window-col {
+  position: relative;
+  overflow: hidden;
+  border-left: 1px solid rgba(184, 138, 58, 0.35);
+  padding: 22px 22px 14px;
+  background: linear-gradient(180deg, rgba(184, 138, 58, 0.05), transparent);
+}
+.oracle-window { position: relative; width: 100%; height: 100%; }
+.oracle-window-glass {
+  position: absolute;
+  inset: 8px 12px 8px 12px;
+  border-radius: 170px 170px 8px 8px;
+  overflow: hidden;
+  box-shadow: inset 0 0 32px rgba(42, 30, 14, 0.55);
+}
+.oracle-window-glass .oracle-zodiac-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.oracle-window-frame { position: absolute; inset: 0; pointer-events: none; }
+.oracle-window-frame-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 2px rgba(184, 138, 58, 0.55));
+}
+
+/* ── METRICS STRIP ───────────────────────────────── */
+.oracle-metrics {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr) 1.3fr;
+  gap: 0;
+  padding: 12px 24px;
+  border-top: 1px solid rgba(184, 138, 58, 0.4);
+  border-bottom: 1px solid rgba(184, 138, 58, 0.3);
+  background:
+    linear-gradient(180deg, rgba(184, 138, 58, 0.06), rgba(184, 138, 58, 0.02)),
+    var(--parchment);
+}
+
+.oracle-metric {
+  padding: 2px 18px;
+  border-left: 1px solid rgba(184, 138, 58, 0.25);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 6px;
+  min-width: 0;
+}
+.oracle-metric:first-child { border-left: none; padding-left: 4px; }
+.oracle-metric.is-empty .oracle-metric-value { opacity: 0.4; }
+
+.oracle-metric-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: "Cinzel", serif;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: var(--gold-deep);
+}
+.oracle-metric-label .glyph { font-size: 12px; color: var(--gold); }
+
+.oracle-metric-value {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: 0;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* cadence phase-dots cluster */
+.oracle-cadence {
+  padding-right: 6px;
+}
+.oracle-cadence-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--gold);
+  font-size: 13px;
+}
+.oracle-cadence-row .edge {
+  color: var(--gold);
+  font-size: 10px;
+  opacity: 0.7;
+}
+.oracle-cadence-row .moon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 251, 238, 0.5), rgba(184, 138, 58, 0.1) 55%, transparent 85%);
+  border: 1px solid rgba(184, 138, 58, 0.55);
+  box-shadow: inset -4px 0 0 rgba(243, 236, 216, 0.9);
+  display: inline-block;
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+.oracle-cadence-row .moon.is-lit {
+  border-color: var(--gold-deep);
+  background:
+    radial-gradient(circle at 35% 35%, #fffbee 0%, #f0d98c 55%, var(--gold) 100%);
+  box-shadow: inset 0 0 0 0 transparent, 0 0 6px rgba(240, 217, 140, 0.55);
+}
+
+/* ── FOOTER ──────────────────────────────────────── */
+.oracle-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(180deg, rgba(184, 138, 58, 0.04), transparent);
+}
+.oracle-foot-glyph { color: var(--gold); font-size: 14px; }
+.oracle-foot-text {
+  font-family: "Cormorant Garamond", serif;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+/* ── animations ──────────────────────────────────── */
+@keyframes oracle-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes oracle-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.15; }
+}

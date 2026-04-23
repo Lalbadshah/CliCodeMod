@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -oE \"line-?[Hh]eight[^,;\\\\\"]{0,80}\")",
+      "Bash(grep -oE \"lineHeight[^,;\\\\\"]{0,80}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"cell\\\\.height[^,;]{0,120}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"css=\\\\{[^}]{0,250}\\\\}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"_device\\\\.cell\\\\.height=[^,;]{0,100}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"Math\\\\.\\(ceil|round|floor\\)\\\\\\([^\\)]{0,100}[lL]ineHeight[^\\)]{0,80}\\\\\\)\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"_refreshRowElements[^}]{0,400}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"element\\\\.style\\\\.cssText=[\\\\\"'][^\\\\\"']{0,250}[\\\\\"']\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"style\\\\.height[^;]{0,100}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"_viewportElement\\\\.style\\\\.backgroundColor[^;]{0,80}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"_injectCss[^\\(]{0,30}\\\\\\([^\\)]{0,200}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "Bash(grep -oE \"background:?\\\\\\\\\\\\\\\\?[$\\\\\"]\\\\{[^}]{0,100}\\\\}\" /Volumes/NVMESSD/Documents/Work/CliCodeMod/node_modules/@xterm/xterm/lib/xterm.mjs)",
+      "WebSearch",
+      "WebFetch(domain:node-llama-cpp.withcat.ai)",
+      "Bash(git -C /Volumes/NVMESSD/Documents/Work/CliCodeMod rev-parse --is-inside-work-tree)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git -c user.email=pranav.bhatnagar.2000@gmail.com -c user.name=\"Pranav Bhatnagar\" commit -q -m \"Initial snapshot before bash/zsh passthrough fix\")"
+    ]
+  }
+}

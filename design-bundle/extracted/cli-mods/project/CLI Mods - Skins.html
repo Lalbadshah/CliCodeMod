@@ -1,0 +1,116 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>CLI Mods — Skin Explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&family=IBM+Plex+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#f0eee9; }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="skins/SkinCyberpunk.jsx"></script>
+<script type="text/babel" src="skins/SkinOracle.jsx"></script>
+<script type="text/babel" src="skins/SkinEditorial.jsx"></script>
+<script type="text/babel">
+  function App() {
+    return (
+      <DesignCanvas>
+        <div style={{ padding: '0 60px 40px' }}>
+          <div style={{
+            fontFamily: 'Fraunces, Georgia, serif', fontSize: 56, fontWeight: 500,
+            letterSpacing: -1.5, color: '#1a1a1a',
+          }}>CLI Mods — Skin explorations</div>
+          <div style={{
+            fontFamily: 'Inter, system-ui, sans-serif', fontSize: 15,
+            color: '#5a5248', maxWidth: 820, marginTop: 8, lineHeight: 1.5,
+          }}>
+            Three Winamp-style skins for a terminal emulator that hosts Claude Code,
+            Codex, Hermes, Kilo, etc. Each skin keeps a dedicated terminal region
+            (that's the whole point) but wraps it in its own chrome, a large animated
+            art piece that intentionally <i>bleeds into</i> the terminal, a session
+            rail, and a stats strip. Scroll right ➜ for the other two.
+          </div>
+          <div style={{
+            display: 'flex', gap: 10, marginTop: 18,
+            fontFamily: 'Inter, system-ui, sans-serif', fontSize: 11,
+            color: '#6b6760', letterSpacing: 2, textTransform: 'uppercase',
+          }}>
+            <span style={{ padding: '3px 8px', background: '#111', color: '#eee' }}>01 · Neon Shrine</span>
+            <span style={{ padding: '3px 8px', border: '1px solid #111' }}>02 · Oracle</span>
+            <span style={{ padding: '3px 8px', border: '1px solid #111' }}>03 · Editorial</span>
+          </div>
+        </div>
+
+        <DCSection
+          title="01 · Neon Shrine"
+          subtitle="Cyberpunk. Scanlines, CRT vignette, neon magenta/cyan. A rain-soaked cityscape pulses through the right edge and bleeds over the terminal. Stats rendered as glowing LED readouts and a live audio-style waveform.">
+          <DCArtboard label="Window — 1100 × 720" width={1100} height={720}>
+            <SkinCyberpunk/>
+          </DCArtboard>
+          <DCPostIt top={-10} left={1130} rotate={3} width={210}>
+            The big art piece is a rainy, zodiac-lit skyline with lit windows pulsing and a flying car streaking across every 14s.
+          </DCPostIt>
+          <DCPostIt top={300} left={1130} rotate={-2} width={210}>
+            Sessions tagged HOT / IDLE / DONE like process monitors. Stats burn-in like LEDs; waveform reacts.
+          </DCPostIt>
+        </DCSection>
+
+        <DCSection
+          title="02 · Oracle"
+          subtitle="Mystical / arcane. Parchment paper, ink letterforms, a hand-drawn mountain night-sky window with a slow-rotating zodiac ring. Sessions become tarot arcana; metrics become almanac entries.">
+          <DCArtboard label="Window — 1100 × 720" width={1100} height={720}>
+            <SkinOracle/>
+          </DCArtboard>
+          <DCPostIt top={-10} left={1130} rotate={-3} width={210}>
+            Animated art = an arched "window" with moon, 12-sign zodiac ring rotating every 2 minutes, twinkling stars, owl blinks, drifting mist.
+          </DCPostIt>
+          <DCPostIt top={300} left={1130} rotate={2} width={210}>
+            Terminal uses serif italic voice-over above mono output. Alchemical SOLVE·COAGULA diagram bleeds over the terminal at the corner.
+          </DCPostIt>
+        </DCSection>
+
+        <DCSection
+          title="03 · Editorial"
+          subtitle="Aino-agency-inspired. Bone paper, hairline rules, a brutalist grid and an oversized display serif. Kinetic-typography marquee, a breathing ∞ numeral bleeding into the right half, terminal as a black newsprint column with a red offset shadow.">
+          <DCArtboard label="Window — 1100 × 720" width={1100} height={720}>
+            <SkinEditorial/>
+          </DCArtboard>
+          <DCPostIt top={-10} left={1130} rotate={3} width={220}>
+            Animated art = a giant rotating ∞ in display serif + live metric marquee + a drifting red "NOW THINKING 62%" tag.
+          </DCPostIt>
+          <DCPostIt top={300} left={1130} rotate={-2} width={220}>
+            Sessions laid out as editorial "contents" with issue numbers; footer is a 7-column newspaper-style stats table w/ sparkline.
+          </DCPostIt>
+        </DCSection>
+
+        <div style={{ padding: '0 60px 40px', maxWidth: 1100 }}>
+          <div style={{
+            fontFamily: 'Fraunces, Georgia, serif', fontSize: 22, fontWeight: 500,
+            color: '#1a1a1a', marginBottom: 8,
+          }}>Notes & next steps</div>
+          <ul style={{
+            fontFamily: 'Inter, system-ui, sans-serif', fontSize: 14,
+            color: '#3a342c', lineHeight: 1.6, paddingLeft: 18,
+          }}>
+            <li>Each skin currently mocks the <i>whole window</i> (chrome + sidebar + stats). In the real mod system these would be swappable layers: chrome, art, stats, cursor, color scheme.</li>
+            <li>Session metrics shown: tokens in/out, cost, turns, latency, files touched, token rate sparkline — plus skin-flavored extras (GPU%, moon phase, issue number).</li>
+            <li>Animation budget is modest — CSS + SVG &lt;animate&gt; only, no WebGL — so mods stay lightweight.</li>
+            <li>Happy to push further: an organic/botanical skin, a Teletext skin, a brutalist-Windows-95 skin, or a low-poly ambient 3D one.</li>
+          </ul>
+        </div>
+      </DesignCanvas>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

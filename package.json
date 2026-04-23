@@ -1,0 +1,33 @@
+{
+  "name": "cli-mods",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modable GUI wrapper for Claude Code and other CLI coding agents.",
+  "main": "dist-electron/main.js",
+  "author": "CLI Mods",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "CLI_MODS_MOCK=1 vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "start": "electron .",
+    "rebuild-native": "electron-rebuild -f -w node-pty",
+    "package": "npm run build && electron-builder",
+    "package:dmg": "npm run build && electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "typescript": "^5.4.2",
+    "vite": "^5.2.0",
+    "vite-plugin-electron": "^0.28.6",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-llama-cpp": "^3.18.1",
+    "node-pty": "^1.1.0"
+  }
+}
