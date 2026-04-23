@@ -4,6 +4,7 @@ import * as pty from "node-pty";
 import { defaultSettings, loadSettings, patchSettings, saveSettings } from "./settings";
 import type { AppSettings, StatusEvent } from "../src/types/events";
 import { LlmIpc } from "./llm/ipc";
+import { buildLaunchArgs } from "./shell-launch";
 
 let win: BrowserWindow | null = null;
 let ptyProc: pty.IPty | null = null;
@@ -56,9 +57,7 @@ async function startPty(cols = 120, rows = 32): Promise<{ ok: boolean; pid?: num
   const binary = settings.binary;
   const cwd = settings.cwd;
   const baseArgs = settings.extraArgs ?? [];
-  const args = currentModVoice
-    ? ["--append-system-prompt", currentModVoice, ...baseArgs]
-    : baseArgs;
+  const { args, extraEnv } = buildLaunchArgs(binary, baseArgs, currentModVoice);
 
   let proc: pty.IPty;
   try {
@@ -71,6 +70,7 @@ async function startPty(cols = 120, rows = 32): Promise<{ ok: boolean; pid?: num
         ...(process.env as Record<string, string>),
         TERM: "xterm-256color",
         COLORTERM: "truecolor",
+        ...extraEnv,
       },
     });
   } catch (err) {
