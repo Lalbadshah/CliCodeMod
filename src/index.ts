@@ -8,12 +8,13 @@ import { renderSettingsDialog } from "./settings-dialog";
 import type { AppSettings, StatusEvent } from "./types/events";
 import { LlmClient, type LlmBridge } from "./llm/client";
 import { detectProfile } from "./profiles/registry";
+import { mountUpdateBanner } from "./update-banner";
 
 declare global {
   interface Window {
     cli: {
       getSettings(): Promise<AppSettings | null>;
-      saveSettings(s: AppSettings): Promise<void>;
+      saveSettings(s: Partial<AppSettings>): Promise<void>;
       pickDirectory(): Promise<string | null>;
       start(geom?: { cols: number; rows: number }): Promise<{ ok: boolean; pid?: number; error?: string }>;
       stop(): Promise<void>;
@@ -25,6 +26,13 @@ declare global {
       onStatus(cb: (s: StatusEvent) => void): () => void;
       onMenuCommand?(cb: (command: string) => void): () => void;
       llm?: LlmBridge;
+      update?: {
+        snapshot(): Promise<unknown>;
+        install(): Promise<void>;
+        dismiss(version: string): void;
+        openRelease(): void;
+        onReady(cb: (payload: unknown) => void): () => void;
+      };
     };
   }
 }
@@ -50,6 +58,8 @@ async function boot(host: HTMLElement, cli: Window["cli"]): Promise<void> {
   });
   bus.setLlm(new LlmClient(cli.llm));
 
+  mountUpdateBanner(cli.update);
+
   const modRoot = document.createElement("div");
   modRoot.id = "mod-root";
   modRoot.style.cssText = "height:100vh;width:100vw;";
@@ -68,7 +78,8 @@ async function boot(host: HTMLElement, cli: Window["cli"]): Promise<void> {
     settings = await new Promise<AppSettings>((resolve) => {
       renderSettingsDialog(host, cli, async (s) => {
         await cli.saveSettings(s);
-        resolve(s);
+        const fresh = await cli.getSettings();
+        resolve(fresh ?? { binary: s.binary ?? "claude", cwd: s.cwd ?? "" });
       });
     });
   }
@@ -104,10 +115,13 @@ async function boot(host: HTMLElement, cli: Window["cli"]): Promise<void> {
       cli,
       async (s) => {
         await cli.saveSettings(s);
-        settings = s;
-        bus.meta.binary = s.binary;
-        bus.meta.cwd = s.cwd;
-        bus.setProfile(detectProfile(s.binary));
+        const fresh = await cli.getSettings();
+        if (fresh) {
+          settings = fresh;
+          bus.meta.binary = fresh.binary;
+          bus.meta.cwd = fresh.cwd;
+          bus.setProfile(detectProfile(fresh.binary));
+        }
       },
       settings ?? undefined,
       () => {},

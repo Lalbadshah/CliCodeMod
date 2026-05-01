@@ -4,9 +4,9 @@
 // system prompt. Safe to delete / disable via the toggle in the mod.
 //
 // Entries are sourced from public meme trackers + slang dictionaries
-// (Wikipedia "Brain rot" / "Glossary of 2020s slang" / "Italian brainrot",
-// plus reporting on 2025-2026 trends). Meanings are intentionally short so
-// the model can glance at them without wasting context.
+// (Wikipedia "Brain rot" / "Glossary of 2020s slang", plus reporting on
+// 2025-2026 trends). Meanings are intentionally short so the model can
+// glance at them without wasting context.
 
 export type MemeEntry = {
   term: string;
@@ -18,8 +18,6 @@ export type MemeEntry = {
 export const MEME_CONTEXT: readonly MemeEntry[] = [
   // Numbers / viral noises
   { term: "6 7", meaning: "absurdist gen-alpha reaction noise, no fixed meaning; from Skrilla's 'Doot Doot (6 7)' + 67 Kid", example: "6 7 this compile time" },
-  { term: "tung tung tung", meaning: "percussive nonsense chant from Italian brainrot AI memes", example: "tung tung tung build green" },
-  { term: "tralalero tralala", meaning: "nonsense AI-meme name, pure Italian brainrot chaos", example: "tralalero tralala merge conflict" },
 
   // Core brainrot vocabulary
   { term: "skibidi", meaning: "chaos, random, cursed — from Skibidi Toilet", example: "skibidi error fr" },
@@ -79,6 +77,32 @@ export const MEME_CONTEXT: readonly MemeEntry[] = [
   { term: "brainrot", meaning: "absurd overstimulating internet humor itself", example: "pure brainrot grind" },
   { term: "sus", meaning: "suspicious, off", example: "this dep is sus" },
   { term: "sybau", meaning: "shut yo bitch ass up (dismissive)", example: "sybau linter" },
+
+  // 2025-2026 freshlist — entries that broke into the mainstream over the
+  // last year and are still landing on TikTok / Discord at scale.
+  { term: "delulu", meaning: "delusionally optimistic; clinging to a take that won't survive contact with reality", example: "delulu thinking this PR ships today" },
+  { term: "ate", meaning: "absolutely nailed it; flawless execution", example: "rust ate that lifetime check" },
+  { term: "drip", meaning: "standout style, confident aesthetic", example: "this commit message has drip" },
+  { term: "glow up", meaning: "noticeable upgrade in quality, looks, or vibe", example: "the codebase had a real glow up" },
+  { term: "looksmaxxing", meaning: "stacking habits to optimize one's appearance — applied ironically to code polish", example: "looksmaxxing the README" },
+  { term: "yapping", meaning: "talking way too much, especially in chat or comments", example: "stop yapping, push the diff" },
+  { term: "rizzler", meaning: "someone with elite rizz; a charisma main", example: "the new copilot is a rizzler" },
+  { term: "skibidi rizzler", meaning: "chaotic-yet-charismatic Gen Alpha archetype", example: "skibidi rizzler refactor" },
+  { term: "delulu is the solulu", meaning: "self-aware joke that delusional optimism is the actual fix", example: "delulu is the solulu, ship it" },
+  { term: "ick", meaning: "involuntary cringe reaction to something off-putting", example: "var-as-any gives me the ick" },
+  { term: "side eye", meaning: "skeptical, not-buying-it expression", example: "side eye at this dependency tree" },
+  { term: "let bro cook", meaning: "give them space to do the thing — they're locked in", example: "let bro cook on the migration" },
+  { term: "negative aura", meaning: "vibes so off you lose social currency", example: "force-pushing main is negative aura" },
+  { term: "pookie", meaning: "affectionate term for a beloved person/thing", example: "this regex is my pookie" },
+  { term: "menty b", meaning: "shorthand for a (mild, online) mental breakdown", example: "tsc gave me a menty b" },
+  { term: "icl", meaning: "i can't lie — leveling up the honesty of a take", example: "icl this stack is mid" },
+  { term: "tweaking", meaning: "buggin', overreacting, not behaving normally", example: "the linter is tweaking again" },
+  { term: "huzz cooked", meaning: "everyone involved got dunked on; collective L", example: "huzz cooked by code review" },
+  { term: "boutta lock in", meaning: "about to focus up, no distractions", example: "boutta lock in for the rebase" },
+  { term: "diabolical", meaning: "wildly evil/cursed in a funny way", example: "diabolical use of any" },
+  { term: "very demure", meaning: "ironically modest / restrained — viral 2024 phrase still in rotation", example: "very mindful, very demure refactor" },
+  { term: "very mindful", meaning: "paired with 'very demure'; performatively careful", example: "very mindful PR description" },
+  { term: "core memory", meaning: "moment etched in your brain forever (Inside Out reference)", example: "shipping that one-liner is a core memory" },
 ];
 
 // Join entries into a compact reference block. Each line: `term — meaning | e.g. "example"`.

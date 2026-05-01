@@ -6,7 +6,7 @@ type Cli = Window["cli"];
 export function renderSettingsDialog(
   host: HTMLElement,
   cli: Cli,
-  onSave: (s: AppSettings) => Promise<void>,
+  onSave: (s: Partial<AppSettings>) => Promise<void>,
   initial?: AppSettings,
   onCancel?: () => void,
 ): void {
@@ -130,17 +130,7 @@ export function renderSettingsDialog(
     overlay.remove();
     llmSection?.dispose();
     if (onCancel) document.removeEventListener("keydown", onKey);
-    const llm = llmSection
-      ? { enabled: llmSection.enabled(), activeModelId: llmSection.activeId() }
-      : initial?.llm;
-    await onSave({
-      binary,
-      cwd,
-      extraArgs: initial?.extraArgs,
-      selectedMod: initial?.selectedMod,
-      windowBounds: initial?.windowBounds,
-      llm,
-    });
+    await onSave({ binary, cwd });
   });
 }
 
@@ -236,6 +226,8 @@ function renderLlmSection(
     if (llmStatus.loading) status.textContent = "loading model into memory…";
     else if (llmStatus.error) status.textContent = `error: ${llmStatus.error}`;
     else if (llmStatus.loaded && llmStatus.activeModelId) status.textContent = `active · ${llmStatus.activeModelId} loaded`;
+    else if (llmStatus.desiredModelId && !llmStatus.loaded)
+      status.textContent = `selected · ${llmStatus.desiredModelId} (not loaded)`;
     else status.textContent = models.some((m) => m.downloaded) ? "no model selected" : "nothing downloaded yet";
   };
 
@@ -291,11 +283,17 @@ function renderLlmSection(
       }
     } else if (m.downloaded) {
       const isActive = m.id === currentActive;
+      const loaded = !!llmStatus?.loaded && llmStatus?.activeModelId === m.id;
+      const loading = !!llmStatus?.loading && llmStatus?.desiredModelId === m.id;
+      const failed = !!llmStatus?.error && llmStatus?.desiredModelId === m.id && !loaded;
       const activeBtn = el("button") as HTMLButtonElement;
       activeBtn.type = "button";
-      activeBtn.textContent = isActive ? "active" : "set active";
-      activeBtn.disabled = isActive;
-      activeBtn.style.cssText = `background:${isActive ? "#1f7a3a" : "#1e1e28"};border:1px solid ${isActive ? "#1f7a3a" : "#2a2a34"};color:${isActive ? "#d2ffd8" : "#c6c6dc"};padding:5px 10px;border-radius:4px;cursor:${isActive ? "default" : "pointer"};font:inherit;font-size:11px;`;
+      const label = isActive
+        ? (loaded ? "active" : loading ? "loading…" : failed ? "failed to load" : "active")
+        : "set active";
+      activeBtn.textContent = label;
+      activeBtn.disabled = isActive && (loaded || loading);
+      activeBtn.style.cssText = `background:${isActive ? "#1f7a3a" : "#1e1e28"};border:1px solid ${isActive ? "#1f7a3a" : "#2a2a34"};color:${isActive ? "#d2ffd8" : "#c6c6dc"};padding:5px 10px;border-radius:4px;cursor:${activeBtn.disabled ? "default" : "pointer"};font:inherit;font-size:11px;`;
       activeBtn.onclick = async () => {
         try {
           await bridge.setActive(m.id);
@@ -373,7 +371,7 @@ function renderLlmSection(
     ]);
     models = modelList;
     llmStatus = st;
-    currentActive = st.activeModelId;
+    currentActive = st.desiredModelId ?? st.activeModelId;
     enable.checked = st.enabled;
     folderPath.value = dir;
     render();
@@ -386,7 +384,7 @@ function renderLlmSection(
   const offProgress = bridge.onDownloadProgress(() => {});
   const offStatus = bridge.onStatusChanged((s) => {
     llmStatus = s;
-    currentActive = s.activeModelId;
+    currentActive = s.desiredModelId ?? s.activeModelId;
     render();
   });
 

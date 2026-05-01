@@ -31,6 +31,7 @@ const INCLUDE_MEME_CONTEXT = true;
 // How many slang entries to sample per bubble refresh. Larger = more
 // vocabulary variety but more tokens spent on context.
 const MEME_SAMPLE_SIZE = 16;
+
 import "./styles.css";
 
 const BRAINROT_VOICE =
@@ -38,19 +39,34 @@ const BRAINROT_VOICE =
 
 const TYPING_GIF_URL = new URL("./typing.gif", import.meta.url).href;
 
-type Channel = {
-  id: string;
-  label: string;
-  src: string;
-  caption: string;
-};
-
-const TV_GIFS: Channel[] = [
-  { id: "typing",   label: "TYPING", src: TYPING_GIF_URL, caption: "cooking 🔥" },
-  { id: "thinking", label: "THINK",  src: "",             caption: "thinking…" },
-  { id: "cooked",   label: "COOKED", src: "",             caption: "we cooked 💀" },
-  { id: "goated",   label: "GOATED", src: "",             caption: "goated 🐐" },
+// Brain-rot reaction GIFs cycled on the TV while Claude is mid-turn (i.e.
+// `session.busy === true`). We shuffle the list each round so the rotation
+// feels random; each gif plays for `loopMs * 2` (roughly two full loops)
+// before the next one swaps in. Browsers don't expose gif frame timing,
+// so loopMs is hand-tuned per asset — bump it if a gif feels cut off.
+const THINKING_GIFS: { src: string; caption: string; loopMs: number }[] = [
+  {
+    src: "https://media1.tenor.com/m/DTEVIMjrtJIAAAAC/gorilla-your-brain-tricks-you.gif",
+    caption: "ape brain loading 🦍",
+    loopMs: 3000,
+  },
+  {
+    src: "https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExZjd1anJ1bWlxODIzdWR2NXpqcXI0ZDBnczUxM2R1end6bnRsYjMxOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/pY8jLmZw0ElqvVeRH4/giphy.gif",
+    caption: "neurons firing ⚡",
+    loopMs: 2500,
+  },
+  {
+    src: "https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExODRvam80MWVrMG9vcDJqeHY0cW50ZWI1Ym5heHloYWs3aHYybWdwZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/RjVP4ZoxA3xeReLQT0/giphy.gif",
+    caption: "thinking real hard 🤔",
+    loopMs: 3000,
+  },
+  {
+    src: "https://media1.tenor.com/m/XpensFv2AIcAAAAC/big-brain-brains.gif",
+    caption: "big brain time 🧠",
+    loopMs: 2500,
+  },
 ];
+const THINKING_LOOP_COUNT = 2;
 
 const TYPING_QUIET_MS = 600;
 const MAX_LIVE_TOOLS = 5;
@@ -333,25 +349,10 @@ export function createBrainrotMod(): Mod {
 
       const dials = document.createElement("div");
       dials.className = "br-tv-dials";
-      const channelRow = document.createElement("div");
-      channelRow.className = "br-tv-channels";
-      const channelButtons: HTMLButtonElement[] = [];
-      TV_GIFS.forEach((g, i) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "br-tv-ch";
-        btn.textContent = String(i + 1);
-        btn.title = g.label;
-        btn.addEventListener("click", () => setChannel(i));
-        // Don't steal terminal focus when clicking the button.
-        btn.addEventListener("mousedown", (e) => e.preventDefault());
-        channelRow.append(btn);
-        channelButtons.push(btn);
-      });
       const knobs = document.createElement("div");
       knobs.className = "br-tv-knobs";
       knobs.innerHTML = `<div class="br-tv-knob"></div><div class="br-tv-knob"></div>`;
-      dials.append(channelRow, knobs);
+      dials.append(knobs);
 
       const tvLabel = document.createElement("div");
       tvLabel.className = "br-tv-label";
@@ -365,15 +366,21 @@ export function createBrainrotMod(): Mod {
       const stats = document.createElement("div");
       stats.className = "br-stats";
 
-      const statDefs = [
-        { key: "in",   lab: "tokens in",  val: "184k",  col: "var(--cyan)",   emoji: "⬇️" },
-        { key: "out",  lab: "tokens out", val: "49k",   col: "var(--pink)",   emoji: "⬆️" },
-        { key: "cost", lab: "cost",       val: "$3.42", col: "var(--lime)",   emoji: "💸" },
-        { key: "turns",lab: "turns",      val: "127",   col: "var(--yellow)", emoji: "🔄" },
-        { key: "lat",  lab: "latency",    val: "412ms", col: "var(--purple)", emoji: "⚡", light: true },
-        { key: "rizz", lab: "rizz score", val: "9001",  col: "var(--pink)",   emoji: "🔥" },
+      // Each card is keyed to a real session field — the label is the
+      // brainrot wrapper, the value is whatever applyInfo writes. Initial
+      // text is "—" so the cards never flash baked-in demo numbers before
+      // the first session emit lands.
+      type StatDef = { key: string; lab: string; col: string; emoji: string; light?: boolean };
+      const statDefs: StatDef[] = [
+        { key: "ctx",  lab: "ctx fried",     col: "var(--pink)",   emoji: "🧠" },
+        { key: "tok",  lab: "tokens cooked", col: "var(--cyan)",   emoji: "🔥" },
+        { key: "cost", lab: "the bag",       col: "var(--lime)",   emoji: "💸" },
+        { key: "blk",  lab: "5h left",       col: "var(--yellow)", emoji: "⏳" },
+        { key: "goat", lab: "the goat",      col: "var(--purple)", emoji: "🐐", light: true },
+        { key: "rizz", lab: "total rizz",    col: "var(--pink)",   emoji: "🚀" },
       ];
       const statVals: Record<string, HTMLElement> = {};
+      const statLabs: Record<string, HTMLElement> = {};
       statDefs.forEach((s, i) => {
         const el = document.createElement("div");
         el.className = "br-stat" + (s.light ? " is-light" : "");
@@ -381,9 +388,10 @@ export function createBrainrotMod(): Mod {
         el.style.transform = `rotate(${(i % 2 ? -1 : 1) * 1.5}deg)`;
         el.innerHTML = `
           <div class="br-stat-lab">${s.emoji} ${s.lab}</div>
-          <div class="br-stat-val">${s.val}</div>
+          <div class="br-stat-val">—</div>
         `;
         statVals[s.key] = el.querySelector(".br-stat-val") as HTMLElement;
+        statLabs[s.key] = el.querySelector(".br-stat-lab") as HTMLElement;
         stats.append(el);
       });
 
@@ -525,46 +533,110 @@ export function createBrainrotMod(): Mod {
       });
 
       // ── TV typing-detection state ────────────────
-      let channel = 0;
       let isTyping = false;
       let quietTimer: number | null = null;
 
-      const renderTv = () => {
-        const g = TV_GIFS[channel];
-        const playing = isTyping && !!g.src;
+      // ── TV thinking state (Claude is mid-turn) ───
+      // While `session.busy` is true we override the channel system and
+      // cycle the brain-rot gifs in shuffled order, swapping every
+      // THINKING_SWAP_MS. When busy flips to false the TV reverts to the
+      // user's selected channel + typing detection.
+      let isThinking = false;
+      let thinkingIdx = -1;
+      let thinkingQueue: number[] = [];
+      let thinkingTimer: number | null = null;
 
-        slot.innerHTML = "";
-        if (playing) {
-          const img = document.createElement("img");
-          img.src = `${g.src}#k=${Date.now()}`;
-          img.alt = g.label;
-          slot.append(img);
-        } else {
-          const frozen = document.createElement("div");
-          frozen.className = "br-tv-frozen";
-          frozen.innerHTML = `
-            <div class="emoji">📺</div>
-            <div>${g.src ? "⏸ paused — type to play" : "⏸ slot empty"}</div>
-          `;
-          slot.append(frozen);
+      const reshuffleThinking = (): void => {
+        const arr = THINKING_GIFS.map((_, i) => i);
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-
-        recDot.style.display = playing ? "flex" : "none";
-        caption.textContent = g.caption;
-        tvLabel.textContent = `CH·${channel + 1}  —  ${g.label}`;
-
-        channelButtons.forEach((btn, i) => {
-          btn.classList.toggle("is-active", i === channel);
-        });
-
-        termStatus.textContent = isTyping ? "⌨️ TYPING…" : "😴 idle";
-        termStatus.classList.toggle("is-idle", !isTyping);
+        // Avoid an immediate repeat across reshuffles when possible.
+        if (arr[0] === thinkingIdx && arr.length > 1) {
+          [arr[0], arr[1]] = [arr[1], arr[0]];
+        }
+        thinkingQueue = arr;
       };
 
-      const setChannel = (i: number) => {
-        if (channel === i) return;
-        channel = i;
+      const advanceThinking = (): void => {
+        if (thinkingQueue.length === 0) reshuffleThinking();
+        thinkingIdx = thinkingQueue.shift()!;
         renderTv();
+        // Schedule the next swap based on this gif's per-loop duration so
+        // each gif gets THINKING_LOOP_COUNT full plays before rotating.
+        if (thinkingTimer != null) window.clearTimeout(thinkingTimer);
+        thinkingTimer = window.setTimeout(
+          advanceThinking,
+          THINKING_GIFS[thinkingIdx].loopMs * THINKING_LOOP_COUNT,
+        );
+      };
+
+      const startThinking = (): void => {
+        if (isThinking) return;
+        isThinking = true;
+        reshuffleThinking();
+        advanceThinking();
+      };
+
+      const stopThinking = (): void => {
+        if (!isThinking) return;
+        isThinking = false;
+        thinkingIdx = -1;
+        if (thinkingTimer != null) {
+          window.clearTimeout(thinkingTimer);
+          thinkingTimer = null;
+        }
+        renderTv();
+      };
+
+      const renderTv = () => {
+        slot.innerHTML = "";
+
+        // Typing wins over thinking — when the user is actively typing we
+        // show their typing gif even if Claude is mid-turn. The thinking
+        // rotation timer keeps running in the background so when typing
+        // pauses the TV resumes on whatever gif we'd advanced to.
+        if (isTyping) {
+          const img = document.createElement("img");
+          img.src = `${TYPING_GIF_URL}#k=${Date.now()}`;
+          img.alt = "typing";
+          slot.append(img);
+          recDot.style.display = "flex";
+          caption.textContent = "cooking 🔥";
+          tvLabel.textContent = "TYPING — LIVE";
+          termStatus.textContent = "⌨️ TYPING…";
+          termStatus.classList.remove("is-idle");
+          return;
+        }
+
+        if (isThinking && thinkingIdx >= 0) {
+          const g = THINKING_GIFS[thinkingIdx];
+          const img = document.createElement("img");
+          img.src = g.src;
+          img.alt = "thinking";
+          img.referrerPolicy = "no-referrer";
+          slot.append(img);
+          recDot.style.display = "flex";
+          caption.textContent = g.caption;
+          tvLabel.textContent = `🧠 BRAIN·${thinkingIdx + 1}  —  THINKING`;
+          termStatus.textContent = "🧠 thinking…";
+          termStatus.classList.remove("is-idle");
+          return;
+        }
+
+        const frozen = document.createElement("div");
+        frozen.className = "br-tv-frozen";
+        frozen.innerHTML = `
+          <div class="emoji">📺</div>
+          <div>⏸ paused — type to play</div>
+        `;
+        slot.append(frozen);
+        recDot.style.display = "none";
+        caption.textContent = "idle 😴";
+        tvLabel.textContent = "STANDBY";
+        termStatus.textContent = "😴 idle";
+        termStatus.classList.add("is-idle");
       };
 
       const bumpTyping = () => {
@@ -1031,6 +1103,9 @@ export function createBrainrotMod(): Mod {
         if (!llm?.isAvailable()) return;
         const info = lastAliasInfo;
         if (!info) return;
+        // Plan mode owns the mood — skip the brain pick so it doesn't
+        // overwrite the "schemin' 🗺️" badge applyInfo just wrote.
+        if (describeMode(info.mode).kind === "plan") return;
         moodStream?.cancel();
         let buf = "";
         moodStream = llm.stream(
@@ -1134,43 +1209,11 @@ export function createBrainrotMod(): Mod {
         bubble.classList.add(`br-bubble-${variant}`);
       };
 
-      // Local rotation guarantees the bubble changes on every tick even when
-      // the LLM is offline, slow, or burns its budget on <think> blocks.
-      const BUBBLE_FALLBACKS = [
-        "fr fr shipping sigma",
-        "no cap this is bussin",
-        "ohio ahh codebase",
-        "locked in gang",
-        "rizzing the compiler",
-        "goated refactor incoming",
-        "skibidi merge when",
-        "mid but we tried",
-        "cooked the types fr",
-        "claude went nuclear",
-        "bro is THE problem",
-        "caught in 4k no cap",
-        "gyatt damn type error",
-        "this diff is bussin",
-        "sigma grind mode",
-        "it's giving ohio",
-        "let him cook respectfully",
-        "npm install that boy",
-        "shadow realm bugs",
-        "L + ratio + compiler",
-      ];
-      const pickFallback = (): string => {
-        let next = bubbleText;
-        let tries = 0;
-        while (next === bubbleText && tries++ < 6) {
-          next = BUBBLE_FALLBACKS[Math.floor(Math.random() * BUBBLE_FALLBACKS.length)];
-        }
-        return next;
-      };
-
       // Walk the entire xterm buffer (scrollback + viewport) so the bubble's
       // punchline can land on session history, not just the visible rows.
-      // Cap the tail so huge sessions don't blow the model context.
-      const TERMINAL_TEXT_CAP = 4000;
+      // The model is run with the catalog's full 8192-token context, so we
+      // can feed a much larger tail than the old 4000-char budget.
+      const TERMINAL_TEXT_CAP = 16_000;
       const readTerminalText = (): string => {
         try {
           const term = xt.term;
@@ -1201,79 +1244,92 @@ export function createBrainrotMod(): Mod {
           .split(/\n/)[0]
           .trim()
           .toLowerCase();
-        // Keep first sentence (up to and including terminal punctuation) if
-        // present; otherwise keep the whole line. Cap length so the bubble
-        // never blows out.
-        const m = base.match(/^[^.!?]+[.!?]/);
-        const one = (m ? m[0] : base).trim();
-        return one.slice(0, 180);
+        // Prefer the first 1–2 sentences so the bubble can carry a real
+        // 12-20 word line (per BRAINROT_BUBBLE_SYSTEM) instead of getting
+        // chopped at the first period. Only fall back to a hard char cap
+        // if punctuation is absent. 240 chars is enough for ~40 words and
+        // the bubble CSS (`max-width: min(60%, 520px)`) wraps cleanly.
+        const sentences = base.match(/[^.!?]+[.!?]/g);
+        let one: string;
+        if (sentences && sentences.length > 0) {
+          one = sentences.slice(0, 2).join(" ").trim();
+        } else {
+          one = base;
+        }
+        return one.slice(0, 240);
       };
 
       let bubbleStream: StreamHandle | null = null;
       let bubbleTimer: number | null = null;
-      let bubbleFallbackTimer: number | null = null;
 
-      const commitBubble = (text: string, committed: { done: boolean }): void => {
-        if (committed.done) return;
+      const commitBubble = (text: string): void => {
         if (!text || text === bubbleText) return;
-        committed.done = true;
         bubbleText = text;
         playBubbleAnim(pickBubbleVariant(), text);
       };
 
       const runBubbleRefresh = (): void => {
-        const committed = { done: false };
-        const fallback = pickFallback();
-
-        // Race the LLM against a short deadline. If the stream returns a
-        // usable line first, it wins; otherwise the fallback fires so the
-        // bubble still changes on every 30s beat.
         const llm = bus.llm;
         const info = lastAliasInfo;
-        if (llm?.isAvailable() && info) {
-          bubbleStream?.cancel();
-          let buf = "";
-          const transcript = readTerminalText();
-          // Fresh random sample each tick so the model isn't spoon-fed the
-          // same vocab every call — keeps outputs from calcifying.
-          const memeContext = INCLUDE_MEME_CONTEXT
-            ? formatMemeContext(sampleMemeContext(MEME_SAMPLE_SIZE))
-            : undefined;
-          bubbleStream = llm.stream(
-            buildBrainrotBubble(bubbleText, info, transcript, memeContext),
-            (tok) => { buf += tok; },
-            { systemPrompt: BRAINROT_BUBBLE_SYSTEM, maxTokens: 220, temperature: 1.15, stop: ["\n\n"] },
-          );
-          trackStream(bubbleStream);
-          bubbleStream.text
-            .then((full) => {
-              const clean = cleanBubble(full || buf);
-              if (clean && clean.length >= 3) commitBubble(clean, committed);
-            })
-            .catch(() => { /* fallback will fire */ });
-        }
-
-        // Guaranteed animation after a short grace period.
-        if (bubbleFallbackTimer != null) window.clearTimeout(bubbleFallbackTimer);
-        bubbleFallbackTimer = window.setTimeout(() => {
-          commitBubble(fallback, committed);
-        }, 6_000);
+        if (!llm?.isAvailable() || !info) return;
+        bubbleStream?.cancel();
+        let buf = "";
+        const transcript = readTerminalText();
+        // Fresh random sample each tick so the model isn't spoon-fed the
+        // same vocab every call — keeps outputs from calcifying.
+        const memeContext = INCLUDE_MEME_CONTEXT
+          ? formatMemeContext(sampleMemeContext(MEME_SAMPLE_SIZE))
+          : undefined;
+        const prompt = buildBrainrotBubble(bubbleText, info, transcript, memeContext);
+        // No `stop` trigger: a "\n\n" stop matches on the first generated
+        // token whenever the chat template emits a leading blank line
+        // (qwen3 `/no_think` injects `<think>\n\n</think>\n\n`, and base
+        // models naturally lead with whitespace), causing the stream to
+        // resolve with zero tokens. cleanBubble already trims to one
+        // sentence, so we don't need an external stop.
+        // No `maxTokens` either — let the model end naturally on its own
+        // EOS so the line lands at a real punchline instead of getting
+        // chopped mid-word at an arbitrary token budget.
+        const opts = { systemPrompt: BRAINROT_BUBBLE_SYSTEM, temperature: 1.15 };
+        const stream = llm.stream(prompt, (tok) => { buf += tok; }, opts);
+        bubbleStream = stream;
+        trackStream(stream);
+        stream.text
+          .then((full) => {
+            const clean = cleanBubble(full || buf);
+            if (clean && clean.length >= 3) commitBubble(clean);
+          })
+          .catch(() => { /* keep previous bubble */ });
       };
 
       const scheduleBubble = (): void => {
         if (bubbleTimer != null) return;
         // First refresh a few seconds after mount so the session has had a
-        // chance to deliver real context; then every 30s.
+        // chance to deliver real context; then every 30s. The bubble holds
+        // its previous text until the LLM responds — no fallback rotation.
         window.setTimeout(runBubbleRefresh, 4_000);
         bubbleTimer = window.setInterval(runBubbleRefresh, 30_000);
       };
 
+      let prevBusy = false;
       const unsub = session.subscribe((info) => {
         lastAliasInfo = info;
-        applyInfo(info, { termPrompt, statVals, moodText, marquee, vibeMode, vibe, modePill });
-        // Preserve the LLM-picked mood if we've got one — applyInfo already
-        // wrote mode-derived text, but our brain loop gets the last word.
-        if (brainMoodText) writeCell(moodText, brainMoodText);
+        const m = describeMode(info.mode);
+        applyInfo(info, { termPrompt, statVals, statLabs, moodText, marquee, vibeMode, vibe, modePill, stats });
+
+        if (info.busy && !prevBusy) startThinking();
+        else if (!info.busy && prevBusy) stopThinking();
+        prevBusy = info.busy;
+        // Plan mode is a deliberate "scheming, not cooking" beat — let the
+        // mode-derived label win so the mood doesn't flicker between
+        // "plan mode 🗺️" and the brain-loop's pick.
+        if (m.kind === "plan") {
+          writeCell(moodText, "schemin' 🗺️");
+        } else if (brainMoodText) {
+          // Otherwise the brain loop gets the last word — it's the themed
+          // voice the mod is meant to project.
+          writeCell(moodText, brainMoodText);
+        }
         refreshCaption(info);
       });
 
@@ -1290,9 +1346,9 @@ export function createBrainrotMod(): Mod {
 
       teardown = () => {
         if (quietTimer != null) window.clearTimeout(quietTimer);
+        if (thinkingTimer != null) window.clearTimeout(thinkingTimer);
         if (brainTimer != null) window.clearInterval(brainTimer);
         if (bubbleTimer != null) window.clearInterval(bubbleTimer);
-        if (bubbleFallbackTimer != null) window.clearTimeout(bubbleFallbackTimer);
         bubbleStream?.cancel();
         for (const c of chips.values()) {
           if (c.doneTimer) window.clearTimeout(c.doneTimer);
@@ -1329,12 +1385,29 @@ export function createBrainrotMod(): Mod {
 type BrRefs = {
   termPrompt: HTMLElement;
   statVals: Record<string, HTMLElement>;
+  statLabs: Record<string, HTMLElement>;
   moodText: HTMLElement;
   marquee: HTMLElement;
   vibeMode: HTMLElement;
   vibe: HTMLElement;
   modePill: HTMLElement;
+  stats: HTMLElement;
 };
+
+// Trim a model id like "claude-opus-4" / "claude-sonnet-4-5" into a short
+// brainrot-friendly nickname for the GOAT card.
+function shortModelName(model: string | undefined): string | undefined {
+  if (!model) return undefined;
+  const m = model.toLowerCase();
+  if (m.includes("opus"))   return "opus 🦋";
+  if (m.includes("sonnet")) return "sonnet 🎶";
+  if (m.includes("haiku"))  return "haiku 🍃";
+  if (m.includes("gpt"))    return "gpt 🤖";
+  if (m.includes("gemini")) return "gemini ♊";
+  // Fall back to the last segment, capped so the card doesn't overflow.
+  const tail = model.split(/[\/:]/).pop() || model;
+  return tail.length > 14 ? tail.slice(0, 13) + "…" : tail;
+}
 
 function applyInfo(info: SessionInfo, r: BrRefs): void {
   const cwdTail = info.cwd
@@ -1343,14 +1416,15 @@ function applyInfo(info: SessionInfo, r: BrRefs): void {
   const branch = info.git && info.git !== "no git" ? info.git : "main";
   writeCell(r.termPrompt, cwdTail ? `$ ~/${cwdTail} · ${branch}` : undefined);
 
-  writeCell(r.statVals.in, info.tokensLabel);
-  if (info.ctxPct != null) {
-    writeCell(r.statVals.out, `${info.ctxPct}%`);
-    const lab = r.statVals.out.parentElement?.querySelector(".br-stat-lab") as HTMLElement | null;
-    writeCell(lab, "🧠 ctx used");
-  }
+  // Stat cards — each label is a brainrot wrapper around a real field.
+  // writeCell skips null/undefined so the "—" placeholder lingers until
+  // the underlying statusline field actually arrives. No more demo
+  // numbers, no more stale labels mismatched with their values.
+  if (info.ctxPct != null) writeCell(r.statVals.ctx, `${info.ctxPct}%`);
+  writeCell(r.statVals.tok, info.tokensLabel);
   writeCell(r.statVals.cost, info.costLabel ? `$${info.costLabel}` : undefined);
-  writeCell(r.statVals.lat, info.statusTime);
+  writeCell(r.statVals.blk, info.block5hLeft);
+  writeCell(r.statVals.goat, shortModelName(info.model));
   writeCell(r.statVals.rizz, formatTokens(info.aggregates.totalTokens));
 
   // Marquee live fills
@@ -1382,6 +1456,24 @@ function applyInfo(info: SessionInfo, r: BrRefs): void {
   if (emojiEl) emojiEl.textContent = m.emoji;
   writeCell(labelEl, m.label);
   writeCell(r.vibeMode, m.label);
+
+  // Mirror the mode on the stats strip too — gives plan / accept / auto a
+  // visible badge even when the title bar is offscreen, and lets CSS dim
+  // the cards in plan mode so it reads as "scheming, not cooking".
+  r.stats.classList.remove("is-mode-default", "is-mode-plan", "is-mode-accept", "is-mode-auto");
+  r.stats.classList.add(`is-mode-${m.kind}`);
+  r.stats.dataset.mode = m.kind;
+
+  // In plan mode, the GOAT card doubles as a "PLAN MODE" badge so the
+  // bottom bar makes it obvious nothing is actually executing.
+  if (m.kind === "plan") {
+    writeCell(r.statLabs.goat, "🗺️ scheming");
+    writeCell(r.statVals.goat, "PLAN MODE");
+  } else {
+    writeCell(r.statLabs.goat, "🐐 the goat");
+    const model = shortModelName(info.model);
+    if (model) writeCell(r.statVals.goat, model);
+  }
 
   // Mood follows the mode too.
   writeCell(r.moodText, `${m.label} ${m.emoji}`);

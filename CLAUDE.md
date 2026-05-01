@@ -254,6 +254,75 @@ The `overlayHost` option auto-adds `position:relative` to the host if needed and
 - Profile parsing runs once per byte — at the moment `bus.write()` is called — and every emitted event is retained in the tool-history ring (capped at 500). A mod mounted mid-session should call `bus.toolSnapshot()` on mount to catch up on past events before subscribing with `bus.onTool()`.
 - The parser state resets on `bus.clear()` (Cmd+K) and on `setProfile()` swaps.
 
+## Session layer (stats + statusline)
+
+Mods get session stats through three independent observe-only channels — none of them push from main; the renderer **scrapes the agent's own statusline out of the xterm buffer** and re-emits it as typed snapshots.
+
+| channel | source | shape | cadence |
+|---|---|---|---|
+| `bus.meta` | set once by main on PTY spawn | `{pid, isMock, cwd, binary}` | static |
+| `createSessionBridge(term, bus)` | `watchStatusline` scans bottom rows of xterm's active buffer with regex against agent statusline glyphs, plus prompt scrape + OSC title + clocks + cumulative aggregates | `SessionInfo` (full catalog below) | debounced 180 ms after each `term.onRender`, plus a 1 s timer for clock/prompt refresh |
+| `bus.onTool` / `bus.toolSnapshot()` | profile parser (claude/codex) | `ToolEvent` stream | per parsed PTY chunk |
+
+**Statusline grammar** — `src/mods/shared/statusline.ts` matches glyph-prefixed segments on the bottom rows: `✷ model ✷`, `∑ tokens`, `$cost`, `◒ cwd`, `⏱ time`, `◈ ctx [..] N%`, `⧗ 5h […] N% ↺ left`, `⧗ 7d […] N% ↺ left`, `⏸/⏵⏵ mode`, plus the in-flight thinking line (`✻ Pondering… (12s · ↑ 3.2k tokens · esc to interrupt)`) — the `esc to interrupt` substring is the ground-truth busy flag. New agents that emit similar glyphs are picked up for free; agents that don't get a mostly-empty `Statusline` and mods fall back to `bus.meta` + tool stream.
+
+**Mod consumption**:
+
+```ts
+const session = createSessionBridge(xt.term, bus);
+const unsub = session.subscribe((info) => {
+  if (info.ctxPct != null) gauge.style.width = info.ctxPct + "%";
+  if (info.lastPrompt) title.textContent = info.lastPrompt;
+});
+teardowns.push(unsub, () => session.dispose());
+```
+
+`session.snapshot` is the latest emit (safe to read synchronously). `subscribe` immediately fires once with the current snapshot then on every change.
+
+**Full `SessionInfo` catalog** (`src/mods/shared/session-info.ts`):
+
+- **Identity / process** — `agentKind` (`"claude-code" | "other"`), `isClaudeCode`, `binary`, `pid`, `isMock` (mirrors `bus.meta`), `cwd`
+- **Live statusline** (parsed from agent's bottom bar; all optional)
+  - `model` — model display string
+  - `tokensLabel` (raw, e.g. `"2.4k"`) + `tokensCount` (numeric)
+  - `costLabel` (raw, e.g. `"0.42"`) + `costAmount` (numeric $)
+  - `git` — branch / dirty marker
+  - `statusTime` — clock string the agent itself rendered
+  - `ctxPct` — context-window % used (0–100)
+  - `block5hPct` + `block5hLeft` — 5h usage block % + time remaining
+  - `block7dPct` + `block7dLeft` — 7d usage block % + time remaining
+  - `mode` — `plan` / `accept edits` / `bypass permissions` / etc.
+  - `statusline` — raw `Statusline` object with the same fields (escape hatch)
+- **Thinking / processing state** (sourced from the same statusline scrape — Claude only renders the spinner line while a turn is in flight, so it doubles as a busy flag)
+  - `busy` — `true` while Claude is processing the active prompt, `false` once the spinner row is gone (always defined; never `undefined`)
+  - `busyVerb` — the rotating verb on the spinner line (`Pondering`, `Cogitating`, `Mulling`, …) when parseable
+  - `busySeconds` — elapsed seconds reported by the agent's own pill
+  - `busyTokens` — token label parsed off the pill (raw string, e.g. `"3.2k"`)
+  - `busyStartedAt` — epoch ms recorded by the bridge on the `false → true` transition; cleared when busy flips back to false. Mods can render "thinking for `(nowMs - busyStartedAt)` ms" without tracking transitions themselves.
+- **Clocks** — `nowMs` (epoch), `timeHHMM`, `timeHHMMSS`
+- **Prompt scrape** (from xterm scrollback, not statusline) — `title` (first user turn, pinned once found), `lastPrompt` (most recent user turn), `terminalTitle` (sanitized OSC 0/2)
+- **Aggregates** (module-level, persist across mod swaps within the window) — `aggregates.peakTokens`, `aggregates.peakCost`, `aggregates.totalTokens`, `aggregates.totalCost` (both handle in-session counter resets via base offsets), `aggregates.updates` (statusline change count), `aggregates.resets` (token-counter restart count), `aggregates.firstSeenAt`, `aggregates.lastUpdatedAt`
+- **Tool stream** (separate channel) — `bus.profileId` plus `ToolEvent`s via `bus.onTool` / `bus.toolSnapshot()`
+- **Raw bytes** (escape hatch for transcript-aware features like the brainrot bubble) — `bus.snapshot()` returns the capped 500 KB PTY tail; `bus.onData(cb)` streams live
+
+**Helpers** — `formatTokens(n)` / `formatCost(n)` for display, `parseTokensLabel` / `parseCostLabel` to convert raw labels to numbers, `resetSessionAggregates()` to zero the module-level totals.
+
+**Gotchas**:
+
+- The bridge depends on the agent rendering its statusline near the bottom of the visible viewport. Agents that hide it (e.g. when running a long stdout-heavy command) will not refresh the fields until the statusline is back in view; aggregates therefore lag in those windows.
+- `busy` is derived from the literal `esc to interrupt` substring on Claude's spinner row. Agents that don't print that string will read as permanently `busy=false`. To react to "Claude started thinking" / "Claude finished" inside a mod, watch for transitions in `session.subscribe`:
+
+  ```ts
+  let prevBusy = false;
+  session.subscribe((info) => {
+    if (info.busy && !prevBusy) onThinkingStart(info);
+    if (!info.busy && prevBusy) onThinkingEnd(info);
+    prevBusy = info.busy;
+  });
+  ```
+- Aggregates are **module-scoped**, not per-mod. Mod swaps preserve totals/peaks; full PTY restart (`Cmd+R`) does not auto-reset them — call `resetSessionAggregates()` if a mod wants a clean slate.
+- `tokensCount` / `costAmount` are best-effort parses of the agent's own label strings. They lose precision (`"2.4k"` becomes `2400`) and may be undefined if the agent uses unfamiliar units.
+
 ## Adding a mod
 
 1. Create `src/mods/<id>/index.ts` exporting a factory that returns `Mod`:

@@ -50,7 +50,7 @@ const llm = {
 
 const api = {
   getSettings: (): Promise<AppSettings | null> => ipcRenderer.invoke("settings:get"),
-  saveSettings: (s: AppSettings): Promise<void> => ipcRenderer.invoke("settings:set", s),
+  saveSettings: (s: Partial<AppSettings>): Promise<void> => ipcRenderer.invoke("settings:set", s),
   pickDirectory: (): Promise<string | null> => ipcRenderer.invoke("dialog:pick-dir"),
 
   start: (geom?: { cols: number; rows: number }): Promise<{ ok: boolean; pid?: number; error?: string }> =>
@@ -74,6 +74,18 @@ const api = {
   },
 
   llm,
+
+  update: {
+    snapshot: (): Promise<unknown> => ipcRenderer.invoke("update:snapshot"),
+    install: (): Promise<void> => ipcRenderer.invoke("update:install"),
+    dismiss: (version: string): void => ipcRenderer.send("update:dismiss", version),
+    openRelease: (): void => ipcRenderer.send("update:open-release"),
+    onReady(cb: (payload: unknown) => void): () => void {
+      const listener = (_: unknown, payload: unknown) => cb(payload);
+      ipcRenderer.on("update:ready", listener);
+      return () => ipcRenderer.removeListener("update:ready", listener);
+    },
+  },
 
   onMenuCommand(cb: (command: string) => void): () => void {
     const channels = [

@@ -33,33 +33,6 @@ const SEARCHING_RE = /⎿\s+([^\r\n⏺●⎿]{2,180})/gu;
 // regex can't keep up with.
 const ENTRY_RE = /⏺\s+([^\r\n]{1,200})/gu;
 
-// Claude's tool names. Canonicalized to space-free keys so alias maps on
-// mods (which use "WebSearch", "BashOutput", etc.) match without needing
-// a per-mod space-aware lookup.
-const KNOWN_TOOLS = new Set([
-  "Bash",
-  "BashOutput",
-  "Read",
-  "Write",
-  "Edit",
-  "MultiEdit",
-  "Glob",
-  "Grep",
-  "Task",
-  "WebFetch",
-  "WebSearch",
-  "NotebookEdit",
-  "NotebookRead",
-  "TodoWrite",
-  "KillShell",
-  "SlashCommand",
-  "AskUserQuestion",
-  "ExitPlanMode",
-  "Update",
-  "Create",
-  "Fetch",
-]);
-
 function canonicalizeToolName(raw: string): string {
   return raw.replace(/\s+/g, "");
 }
@@ -113,7 +86,6 @@ export function createClaudeParser(emit: ToolEventEmit): ProfileParser {
       const name = canonicalizeToolName(rawName);
       const afterBold = TOOL_BOLD_RE.lastIndex;
       rawScan = afterBold;
-      if (!KNOWN_TOOLS.has(name)) continue;
 
       // Bold delimiters also wrap decorative text in the startup banner
       // ("\e[1mClaude\e[1CCode\e[22m"). Tool calls always have "(" as the
@@ -134,6 +106,11 @@ export function createClaudeParser(emit: ToolEventEmit): ProfileParser {
         (endIdx >= 0 ? argsTail.slice(0, endIdx) : argsTail.slice(0, 160))
           .trim()
           .replace(/\s+/g, " ") || undefined;
+
+      // Claude re-emits the same bold-SGR whenever its sync-update region
+      // repaints (SIGWINCH, spinner ticks, focus changes). Dedupe by name
+      // so we don't churn the live chip through close→reopen every time.
+      if (active && active.name === name) continue;
 
       closeActive();
       const id = nextId("clt");
@@ -184,6 +161,12 @@ export function createClaudeParser(emit: ToolEventEmit): ProfileParser {
       // summary — the next bold-SGR match has the real name).
       const isToolStart = /^[A-Z][A-Za-z0-9]*(?:\s[A-Z][A-Za-z0-9]*)*\s*\(/.test(body);
       if (isToolStart) {
+        // The ⏺ line for the currently-live tool (its opener, re-emitted
+        // by repaints) must not be treated as a close. Only close when the
+        // name differs — i.e. a *different* tool is about to start.
+        const nameMatch = body.match(/^([A-Z][A-Za-z0-9]*(?:\s[A-Z][A-Za-z0-9]*)*)/);
+        const entryName = nameMatch ? canonicalizeToolName(nameMatch[1]) : "";
+        if (entryName === active.name) continue;
         closeActive();
       } else {
         // Assistant prose or completion summary. Prefer the previously
@@ -200,8 +183,12 @@ export function createClaudeParser(emit: ToolEventEmit): ProfileParser {
       raw += chunk;
       stripped += stripAnsi(chunk);
       trim();
-      scanCalls();
+      // Outputs (⎿/⏺) first so completion summaries close the prior active
+      // before scanCalls opens the next one. The reverse order meant a
+      // chunk containing both the new tool's bold-SGR and its ⏺ opener
+      // would open then immediately close the new tool in the same pass.
       scanOutputs();
+      scanCalls();
     },
     flush(): void {
       closeActive();

@@ -132,7 +132,20 @@ export class LlmClient {
       this.pending.delete(requestId);
       if (reason === "done") {
         const raw = text ?? p.buffer;
-        p.resolve(stripThinkBlocks(raw));
+        const stripped = stripThinkBlocks(raw);
+        // When the model emitted tokens but everything was inside an
+        // unclosed `<think>` block, `stripped` will be empty while `raw`
+        // is non-trivial. Surface that loud and clear so callers can
+        // diagnose "LLM kept losing the deadline" without a runtime
+        // breakpoint — common with thinking models that don't honor a
+        // `/no_think` directive in the current chat template.
+        if (raw.length > 0 && stripped.length === 0) {
+          console.warn(
+            "[llm] stripThinkBlocks zeroed the response — model never escaped <think> mode",
+            { requestId, rawLen: raw.length, rawPreview: raw.slice(0, 400) },
+          );
+        }
+        p.resolve(stripped);
       } else if (reason === "cancelled") p.reject(new DOMException("Cancelled", "AbortError"));
       else p.reject(new Error(error ?? "llm error"));
     });

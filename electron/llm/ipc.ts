@@ -46,6 +46,7 @@ export class LlmIpc {
 
     this.manager.onStatus((s) => this.send("llm:status-changed", s));
     this.manager.setEnabled(this.persist.getEnabled());
+    this.manager.setDesired(this.persist.getActiveModelId());
   }
 
   private currentModelsDir(): string {
@@ -57,6 +58,7 @@ export class LlmIpc {
     await this.manager.unloadModel();
     const activeId = this.persist.getActiveModelId();
     if (activeId && !(await this.downloader.exists(activeId))) {
+      this.manager.setDesired(undefined);
       await this.persist.setActiveModelId(undefined);
     }
     this.send("llm:status-changed", this.manager.getStatus());
@@ -117,6 +119,7 @@ export class LlmIpc {
     ipcMain.handle("llm:delete", async (_e, id: string) => {
       const active = this.manager.getStatus().activeModelId;
       if (active === id) {
+        this.manager.setDesired(undefined);
         await this.manager.unloadModel();
         await this.persist.setActiveModelId(undefined);
       }
@@ -125,6 +128,7 @@ export class LlmIpc {
 
     ipcMain.handle("llm:set-active", async (_e, id: string | null) => {
       if (!id) {
+        this.manager.setDesired(undefined);
         await this.manager.unloadModel();
         await this.persist.setActiveModelId(undefined);
         return;
@@ -135,8 +139,9 @@ export class LlmIpc {
       if (!(await this.downloader.exists(id))) {
         throw new Error(`model not downloaded: ${id}`);
       }
-      await this.manager.loadModel(id, this.downloader.modelPath(id));
+      this.manager.setDesired(id);
       await this.persist.setActiveModelId(id);
+      await this.manager.loadModel(id, this.downloader.modelPath(id));
     });
 
     ipcMain.handle("llm:set-enabled", async (_e, enabled: boolean) => {

@@ -10,12 +10,14 @@ import {
   formatTokens,
   type SessionInfo,
 } from "../shared/session-info";
-import { describeMode } from "../shared/mode";
+import { describeMode, type ModeKind } from "../shared/mode";
+import { modeGlyph } from "./glyphs";
 import {
   createTokenRateTracker,
   renderSparkPaths,
   type TokenRateSnapshot,
 } from "./token-rate";
+import { createHeadlineEngine, type Headline } from "./headline";
 import "./styles.css";
 
 const EDITORIAL_VOICE =
@@ -74,14 +76,39 @@ export function createEditorialMod(): Mod {
 
       const session = createSessionBridge(xt.term, bus);
       const rate = createTokenRateTracker();
+      const headlineEngine = createHeadlineEngine(bus.llm ?? null, {
+        onUpdate(h) {
+          renderHeadline(body, h);
+        },
+      });
+
+      const readTranscriptTail = (): string | undefined => {
+        try {
+          const buf = xt.term.buffer.active;
+          const total = buf.length;
+          if (total === 0) return undefined;
+          const start = Math.max(0, total - 200);
+          const lines: string[] = [];
+          for (let i = start; i < total; i++) {
+            lines.push(buf.getLine(i)?.translateToString(true) ?? "");
+          }
+          while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+          const joined = lines.join("\n").trim();
+          return joined.length > 3200 ? "…" + joined.slice(-3200) : joined || undefined;
+        } catch {
+          return undefined;
+        }
+      };
 
       const unsub = session.subscribe((info) => {
         rate.sample(info);
         apply(info, rate.snapshot(), { masthead, marquee, body, stats });
+        headlineEngine.update({ info, transcript: readTranscriptTail() });
       });
 
       teardown = () => {
         unsub();
+        headlineEngine.dispose();
         session.dispose();
         rate.dispose();
         xt.dispose();
@@ -222,6 +249,7 @@ type Body = {
   thinkingPill: HTMLElement;
   thinkingLabel: HTMLElement;
   thinkingPct: HTMLElement;
+  thinkingGlyph: HTMLElement;
   termHost: HTMLElement;
   termCwd: HTMLElement;
   termGit: HTMLElement;
@@ -247,7 +275,7 @@ function buildBody(): Body {
 
   const thinkingPill = document.createElement("div");
   thinkingPill.className = "ed-thinking is-idle";
-  thinkingPill.innerHTML = `<span class="label">PRINT RUN</span><span class="sep">·</span><span class="pct">—</span>`;
+  thinkingPill.innerHTML = `<span class="ed-thinking-glyph" aria-hidden="true"></span><span class="label">PRINT RUN</span><span class="sep">·</span><span class="pct">—</span>`;
 
   const termWrap = document.createElement("div");
   termWrap.className = "ed-term-wrap";
@@ -279,6 +307,7 @@ function buildBody(): Body {
     thinkingPill,
     thinkingLabel: thinkingPill.querySelector(".label") as HTMLElement,
     thinkingPct: thinkingPill.querySelector(".pct") as HTMLElement,
+    thinkingGlyph: thinkingPill.querySelector(".ed-thinking-glyph") as HTMLElement,
     termHost,
     termCwd: termHeader.querySelector(".ed-term-cwd") as HTMLElement,
     termGit: termHeader.querySelector(".ed-term-git") as HTMLElement,
@@ -434,35 +463,24 @@ function apply(info: SessionInfo, rate: TokenRateSnapshot, r: Refs): void {
     writeCell(r.marquee.latencies[i], clockLabel);
   }
 
-  // headline
-  if (info.title) {
-    const kickerParts = [
-      "A CONVERSATION",
-      info.mode ? edMode.labelUpper : "IN PROGRESS",
-      `WITH ${info.isClaudeCode ? "CLAUDE" : (info.binary ?? "SHELL").toUpperCase()}`,
-    ];
-    writeCell(r.body.headKicker, kickerParts.join(" · "));
-    writeCell(r.body.headTitle, info.title);
-    r.body.headTitle.classList.remove("is-empty");
-    r.body.headTitle.setAttribute("title", info.title);
-  } else {
-    writeCell(r.body.headKicker, "AWAITING · FIRST · PROMPT");
-    writeCell(r.body.headTitle, "The conversation has not yet begun.");
-    r.body.headTitle.classList.add("is-empty");
-    r.body.headTitle.removeAttribute("title");
-  }
+  // headline is owned by the headline engine — see createHeadlineEngine
 
-  // now-thinking pill
-  r.body.thinkingPill.classList.remove("is-plan", "is-accept", "is-auto", "is-default");
-  if (info.mode) {
-    r.body.thinkingPill.classList.remove("is-idle");
+  // now-thinking pill — renders the current mode (default included). Claude
+  // Code strips the symbol from the statusline when default is active, so
+  // info.mode is undefined; we still show "DEFAULT MODE" + the pilcrow
+  // glyph as long as we have any session signal. Falls back to idle only
+  // before the first statusline read.
+  const hasSession =
+    info.mode != null ||
+    info.ctxPct != null ||
+    info.model != null ||
+    info.isClaudeCode;
+  r.body.thinkingPill.classList.remove("is-idle", "is-plan", "is-accept", "is-auto", "is-default");
+  if (hasSession) {
     r.body.thinkingPill.classList.add(`is-${edMode.kind}`);
     writeCell(r.body.thinkingLabel, edMode.labelUpper);
     writeCell(r.body.thinkingPct, info.ctxPct != null ? `${info.ctxPct}%` : "·");
-  } else if (info.ctxPct != null) {
-    r.body.thinkingPill.classList.remove("is-idle");
-    writeCell(r.body.thinkingLabel, "CONTEXT");
-    writeCell(r.body.thinkingPct, `${info.ctxPct}%`);
+    swapModeGlyph(r.body.thinkingGlyph, edMode.kind);
   } else {
     r.body.thinkingPill.classList.add("is-idle");
   }
@@ -515,10 +533,24 @@ function apply(info: SessionInfo, rate: TokenRateSnapshot, r: Refs): void {
   r.stats.spark.update(rate, sparkSub);
 }
 
+function swapModeGlyph(host: HTMLElement, kind: ModeKind): void {
+  if (host.dataset.mode === kind) return;
+  host.dataset.mode = kind;
+  host.replaceChildren(modeGlyph(kind));
+}
+
 function issueDate(): string {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   const yy = String(d.getFullYear()).slice(-2);
   return `${mm}·${dd}·${yy}`;
+}
+
+function renderHeadline(body: Body, h: Headline): void {
+  writeCell(body.headKicker, h.kicker);
+  writeCell(body.headTitle, h.title);
+  body.headTitle.classList.toggle("is-empty", h.empty);
+  if (h.empty) body.headTitle.removeAttribute("title");
+  else body.headTitle.setAttribute("title", h.title);
 }

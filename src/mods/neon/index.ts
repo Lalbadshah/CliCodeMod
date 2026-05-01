@@ -347,7 +347,6 @@ function makeDial(label: string): Dial {
         fill="none" stroke="url(#neon-dial-grad)" stroke-width="5" stroke-linecap="butt"
         stroke-dasharray="${DIAL_ARC_LEN.toFixed(2)}"
         stroke-dashoffset="${DIAL_ARC_LEN.toFixed(2)}"/>
-      <circle cx="50" cy="50" r="4" fill="#ff3a1e" stroke="#ffd400" stroke-width="0.6"/>
     </svg>
     <div class="neon-dial-num">
       <span class="num">— —</span>

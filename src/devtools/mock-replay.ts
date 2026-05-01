@@ -22,6 +22,13 @@ function script(): Step[] {
   push(180, `${BOLD}${FG_MAGENTA}› ${RESET}${FG_WHITE}refactor auth/middleware.ts to use JWT with rotating keys${RESET}\r\n\r\n`);
 
   push(240, `${DIM}${ITAL}thinking…${RESET}\r\n`);
+  // Fake spinner row that mimics Claude Code's "esc to interrupt" pill so
+  // the session bridge's busy detector flips to true under dev:mock. The
+  // \r at the end lets the next line overwrite this in-place, mirroring
+  // how the real agent redraws the spinner.
+  push(220, `${FG_MAGENTA}✻${RESET} ${BOLD}Pondering…${RESET} ${DIM}(3s · ↑ 1.4k tokens · esc to interrupt)${RESET}\r`);
+  push(220, `${FG_MAGENTA}✻${RESET} ${BOLD}Cogitating…${RESET} ${DIM}(5s · ↑ 1.8k tokens · esc to interrupt)${RESET}\r`);
+  push(220, `${FG_MAGENTA}✻${RESET} ${BOLD}Mulling…${RESET} ${DIM}(7s · ↑ 2.1k tokens · esc to interrupt)${RESET}\r\n`);
   push(220, `${FG_GRAY}  · considering 24h key rotation with 48h grace window${RESET}\r\n`);
   push(220, `${FG_GRAY}  · HS256 verification stays for existing tokens${RESET}\r\n`);
   push(220, `${FG_GRAY}  · introduce KeyRing interface + scheduled rotator${RESET}\r\n\r\n`);

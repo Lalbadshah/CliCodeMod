@@ -407,11 +407,44 @@
   font-weight: 900;
   letter-spacing: 0;
 }
+
+/* mode glyph at the pill's leading edge — newsroom iconography
+ * (pilcrow / pencil / proof stamp / press cylinder), inherits ink. */
+.ed-thinking-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  color: currentColor;
+  flex: 0 0 auto;
+}
+.ed-thinking-glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.ed-thinking.is-auto .ed-thinking-glyph svg {
+  animation: ed-glyph-spin 2.4s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes ed-glyph-spin {
+  to { transform: rotate(360deg); }
+}
+
 .ed-thinking.is-idle {
   background: var(--bone-deep);
   color: var(--ink-mute);
   box-shadow: 1px 1px 0 var(--hair-soft);
   animation: none;
+}
+/* default — newsroom is running on its standard order */
+.ed-thinking.is-default {
+  background: var(--bone);
+  color: var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+  border: 1px solid var(--ink);
+  padding: 5px 11px 5px 13px;
 }
 .ed-thinking.is-plan {
   background: var(--ink);

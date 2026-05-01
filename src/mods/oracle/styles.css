@@ -202,9 +202,31 @@
   font-size: 15px;
   color: var(--ink);
   margin: 1px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.oracle-dossier-row .line-glyph {
+  flex: 0 0 auto;
+  display: none;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+.oracle-dossier-row .line-glyph.is-set { display: inline-flex; }
+.oracle-dossier-row .line-glyph svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+.oracle-dossier-row .line-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .oracle-dossier-row.is-active {
   background: linear-gradient(90deg, rgba(184, 138, 58, 0.16), rgba(184, 138, 58, 0.02) 80%);
@@ -214,6 +236,99 @@
 .oracle-dossier-row.is-active .line-kicker { color: var(--ruby); }
 .oracle-dossier-row.is-empty { opacity: 0.45; }
 .oracle-dossier-row.is-empty .line-title { font-style: normal; color: var(--ink-mute); }
+
+/* ── Mode-of-work highlight on the ORDER row ─────────────
+ * Claude Code cycles between default / plan / accept / auto (shift+tab).
+ * Each mode claims a different tone of ink so the seeker knows which
+ * order currently governs the terminal — plan is the most portentous
+ * since the augur has been asked to contemplate before acting. The
+ * accompanying glyph (./glyphs.ts) is themed to the order: wedjat for
+ * default, sealed scroll for plan, chalice for accept, sun-wheel for
+ * auto. No emoji — everything inherits the row's ink colour.
+ */
+
+/* Default — the augur watches, no edict given. Subtle gold ink. */
+.oracle-dossier-row.is-mode-default {
+  background: linear-gradient(90deg, rgba(184, 138, 58, 0.08), rgba(184, 138, 58, 0.01) 80%);
+  border-left: 2px solid var(--gold-deep);
+}
+.oracle-dossier-row.is-mode-default .line-kicker { color: var(--gold-deep); }
+.oracle-dossier-row.is-mode-default .line-title { color: var(--ink-soft); }
+.oracle-dossier-row.is-mode-default .line-glyph { color: var(--gold-deep); }
+
+.oracle-dossier-row.is-mode-plan {
+  background:
+    linear-gradient(90deg, rgba(125, 34, 32, 0.18), rgba(184, 138, 58, 0.05) 70%, transparent);
+  border-left: 2px solid var(--ruby);
+  box-shadow: inset 0 0 18px rgba(125, 34, 32, 0.08);
+  animation: oracle-mode-plan-pulse 2.6s ease-in-out infinite;
+}
+.oracle-dossier-row.is-mode-plan .line-kicker {
+  color: var(--ruby);
+  letter-spacing: 4px;
+}
+.oracle-dossier-row.is-mode-plan .line-title {
+  color: var(--ruby);
+  font-weight: 600;
+  font-style: italic;
+  text-shadow: 0 0 10px rgba(125, 34, 32, 0.28);
+}
+.oracle-dossier-row.is-mode-plan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  right: 6px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at calc(100% - 10px) 50%,
+    rgba(125, 34, 32, 0.35) 0%,
+    rgba(125, 34, 32, 0) 55%
+  );
+  opacity: 0.9;
+  animation: oracle-mode-plan-ember 2.6s ease-in-out infinite;
+}
+
+.oracle-dossier-row.is-mode-accept {
+  background: linear-gradient(90deg, rgba(90, 106, 40, 0.18), rgba(184, 138, 58, 0.04) 75%);
+  border-left: 2px solid #7a8a3a;
+}
+.oracle-dossier-row.is-mode-accept .line-kicker { color: #5a6a28; }
+.oracle-dossier-row.is-mode-accept .line-title { color: #3d4a16; font-weight: 600; }
+
+.oracle-dossier-row.is-mode-auto {
+  background: linear-gradient(90deg, rgba(184, 138, 58, 0.28), rgba(138, 104, 32, 0.05) 75%);
+  border-left: 2px solid var(--gold-deep);
+  animation: oracle-mode-auto-pulse 2s ease-in-out infinite;
+}
+.oracle-dossier-row.is-mode-auto .line-kicker { color: var(--gold-deep); }
+.oracle-dossier-row.is-mode-auto .line-title { color: var(--gold-deep); font-weight: 600; }
+
+@keyframes oracle-mode-plan-pulse {
+  0%, 100% {
+    box-shadow: inset 0 0 18px rgba(125, 34, 32, 0.08);
+    border-left-color: var(--ruby);
+  }
+  50% {
+    box-shadow: inset 0 0 22px rgba(125, 34, 32, 0.22);
+    border-left-color: #a6332f;
+  }
+}
+@keyframes oracle-mode-plan-ember {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1;   }
+}
+@keyframes oracle-mode-auto-pulse {
+  0%, 100% { border-left-color: var(--gold-deep); }
+  50%      { border-left-color: var(--gold); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oracle-dossier-row.is-mode-plan,
+  .oracle-dossier-row.is-mode-plan::after,
+  .oracle-dossier-row.is-mode-auto {
+    animation: none;
+  }
+}
 
 /* astral readings at bottom of grimoire */
 .oracle-astral {

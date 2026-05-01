@@ -1,16 +1,18 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, type MenuItemConstructorOptions } from "electron";
 import { join } from "node:path";
 import * as pty from "node-pty";
-import { defaultSettings, loadSettings, patchSettings, saveSettings } from "./settings";
+import { defaultSettings, loadSettings, patchSettings } from "./settings";
 import type { AppSettings, StatusEvent } from "../src/types/events";
 import { LlmIpc } from "./llm/ipc";
 import { buildLaunchArgs } from "./shell-launch";
+import { createUpdater, type Updater } from "./auto-update";
 
 let win: BrowserWindow | null = null;
 let ptyProc: pty.IPty | null = null;
 let settings: AppSettings | null = null;
 let currentModVoice: string | null = null;
 let llmIpc: LlmIpc | null = null;
+let updater: Updater | null = null;
 
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 const MOCK_MODE = process.env.CLI_MODS_MOCK === "1" || process.argv.includes("--mock");
@@ -292,28 +294,15 @@ app.whenReady().then(async () => {
       getEnabled: () => settings?.llm?.enabled ?? true,
       getModelsDir: () => settings?.llm?.modelsDir ?? null,
       setActiveModelId: async (id) => {
-        const prev = settings?.llm ?? { enabled: true };
-        const updated = await patchSettings({
-          llm: { enabled: prev.enabled, activeModelId: id, modelsDir: prev.modelsDir },
-        });
+        const updated = await patchSettings({ llm: { activeModelId: id } });
         if (updated) settings = updated;
       },
       setEnabled: async (enabled) => {
-        const prev = settings?.llm;
-        const updated = await patchSettings({
-          llm: { enabled, activeModelId: prev?.activeModelId, modelsDir: prev?.modelsDir },
-        });
+        const updated = await patchSettings({ llm: { enabled } });
         if (updated) settings = updated;
       },
       setModelsDir: async (dir) => {
-        const prev = settings?.llm ?? { enabled: true };
-        const updated = await patchSettings({
-          llm: {
-            enabled: prev.enabled,
-            activeModelId: prev.activeModelId,
-            modelsDir: dir ?? undefined,
-          },
-        });
+        const updated = await patchSettings({ llm: { modelsDir: dir ?? undefined } });
         if (updated) settings = updated;
       },
     },
@@ -321,9 +310,9 @@ app.whenReady().then(async () => {
   llmIpc.register();
 
   ipcMain.handle("settings:get", async () => settings);
-  ipcMain.handle("settings:set", async (_e, s: AppSettings) => {
-    settings = s;
-    await saveSettings(s);
+  ipcMain.handle("settings:set", async (_e, s: Partial<AppSettings>) => {
+    const updated = await patchSettings(s);
+    if (updated) settings = updated;
   });
   ipcMain.handle("dialog:pick-dir", async () => {
     const result = await dialog.showOpenDialog(win!, {
@@ -356,6 +345,11 @@ app.whenReady().then(async () => {
   buildMenu();
   await createWindow();
 
+  if (win) {
+    updater = createUpdater(win);
+    updater.start();
+  }
+
   void llmIpc?.initialActiveLoad();
 
   app.on("activate", async () => {
@@ -369,6 +363,10 @@ app.on("window-all-closed", async () => {
 });
 
 app.on("before-quit", async (e) => {
+  if (updater) {
+    updater.stop();
+    updater = null;
+  }
   if (llmIpc) {
     await llmIpc.shutdown();
     llmIpc = null;

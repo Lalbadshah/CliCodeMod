@@ -43,6 +43,7 @@ export type LlmStatus = {
   available: boolean;
   enabled: boolean;
   activeModelId?: string;
+  desiredModelId?: string;
   loaded: boolean;
   loading: boolean;
   error?: string;

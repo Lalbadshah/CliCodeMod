@@ -5,6 +5,10 @@
   "description": "Modable GUI wrapper for Claude Code and other CLI coding agents.",
   "main": "dist-electron/main.js",
   "author": "CLI Mods",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lalbadshah/CliCodeMod.git"
+  },
   "scripts": {
     "dev": "vite",
     "dev:mock": "CLI_MODS_MOCK=1 vite",
@@ -12,7 +16,10 @@
     "start": "electron .",
     "rebuild-native": "electron-rebuild -f -w node-pty",
     "package": "npm run build && electron-builder",
-    "package:dmg": "npm run build && electron-builder --mac dmg"
+    "package:dmg": "npm run build && electron-builder --mac dmg",
+    "package:mac": "bash scripts/build-mac.sh",
+    "package:mac:publish": "bash scripts/build-mac.sh always",
+    "install:local": "bash scripts/install.sh"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

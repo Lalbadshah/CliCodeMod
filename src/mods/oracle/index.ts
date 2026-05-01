@@ -13,7 +13,8 @@ import {
   formatTokens,
   type SessionInfo,
 } from "../shared/session-info";
-import { describeMode } from "../shared/mode";
+import { describeMode, type ModeKind } from "../shared/mode";
+import { modeGlyph } from "./glyphs";
 import "./styles.css";
 
 const ORACLE_VOICE =
@@ -225,24 +226,54 @@ export function createOracleMod(): Mod {
 }
 
 type DossierRow = {
-  setValue(v: string | undefined, state?: "active" | "done" | "empty"): void;
+  setValue(
+    v: string | undefined,
+    state?: "active" | "done" | "empty",
+    mode?: ModeKind,
+  ): void;
 };
+
+const MODE_CLASSES = [
+  "is-mode-default",
+  "is-mode-plan",
+  "is-mode-accept",
+  "is-mode-auto",
+];
 
 function makeDossierRow(parent: HTMLElement, num: string, kicker: string): DossierRow {
   const row = document.createElement("div");
   row.className = "oracle-dossier-row";
   row.innerHTML = `
     <dt class="line-kicker">${num} · ${kicker}</dt>
-    <dd class="line-title">—</dd>
+    <dd class="line-title">
+      <span class="line-glyph" aria-hidden="true"></span>
+      <span class="line-text">—</span>
+    </dd>
   `;
   parent.append(row);
-  const val = row.querySelector(".line-title") as HTMLElement;
+  const text = row.querySelector(".line-text") as HTMLElement;
+  const glyphSlot = row.querySelector(".line-glyph") as HTMLElement;
+  let lastMode: ModeKind | null = null;
   return {
-    setValue(v, state) {
+    setValue(v, state, mode) {
       if (v == null || v === "") return;
-      writeCell(val, v);
+      writeCell(text, v);
       row.classList.remove("is-active", "is-done", "is-empty");
       if (state) row.classList.add("is-" + state);
+
+      row.classList.remove(...MODE_CLASSES);
+      if (mode) {
+        row.classList.add(`is-mode-${mode}`);
+        if (mode !== lastMode) {
+          glyphSlot.replaceChildren(modeGlyph(mode));
+          glyphSlot.classList.add("is-set");
+          lastMode = mode;
+        }
+      } else if (lastMode != null) {
+        glyphSlot.replaceChildren();
+        glyphSlot.classList.remove("is-set");
+        lastMode = null;
+      }
     },
   };
 }
@@ -369,11 +400,12 @@ function apply(info: SessionInfo, r: OracleRefs): void {
     : undefined;
   r.dCwd.setValue(cwdLabel);
   r.dGit.setValue(info.git && info.git !== "no git" ? info.git : (info.git === "no git" ? "no repo" : undefined));
+  // ORDER row always shows a mode — default-mode strips the symbol from
+  // the statusline so info.mode is undefined; we surface "default" so
+  // the seeker sees there is no current edict, paired with the wedjat
+  // glyph instead of an emoji.
   const oracleMode = describeMode(info.mode);
-  r.dMode.setValue(
-    info.mode ? `${oracleMode.emoji} ${oracleMode.label}` : undefined,
-    info.mode ? "active" : "empty",
-  );
+  r.dMode.setValue(oracleMode.label, "active", oracleMode.kind);
 
   // ── astral (live) ─────
   r.aMercury.setValue(info.isClaudeCode ? "claude-code" : (info.binary ?? "generic"));

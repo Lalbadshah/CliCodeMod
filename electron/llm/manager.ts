@@ -53,7 +53,9 @@ export class LlmManager {
   }
 
   setDesired(id: string | undefined): void {
+    if (this.desiredId === id) return;
     this.desiredId = id;
+    this.emitStatus();
   }
 
   getStatus(): LlmStatus {
@@ -61,6 +63,7 @@ export class LlmManager {
       available: this.enabled && !!this.active && !this.loading,
       enabled: this.enabled,
       activeModelId: this.active?.id,
+      desiredModelId: this.desiredId,
       loaded: !!this.active,
       loading: this.loading,
       error: this.loadError,
@@ -93,7 +96,10 @@ export class LlmManager {
     try {
       const llama: any = await this.lib();
       const entry = findEntry(id);
-      const contextSize = Math.min(entry?.contextWindow ?? 4096, 4096);
+      // Use the catalog's full context window. The previous Math.min cap
+      // at 4096 was forcing the bubble (and other long-context callers) to
+      // truncate transcripts well before they needed to.
+      const contextSize = entry?.contextWindow ?? 4096;
       const model = await llama.loadModel({ modelPath: path });
       const context = await model.createContext({ contextSize });
       this.active = { id, path, model, context };
@@ -140,7 +146,10 @@ export class LlmManager {
         });
 
         const response: string = await session.prompt(req.prompt, {
-          maxTokens: req.options.maxTokens ?? 80,
+          // Pass maxTokens through as-is. Undefined lets node-llama-cpp
+          // run until the model emits EOS or the context fills — callers
+          // that want a hard cap pass an explicit number.
+          maxTokens: req.options.maxTokens,
           temperature: req.options.temperature ?? 0.8,
           topP: req.options.topP,
           signal: controller.signal,

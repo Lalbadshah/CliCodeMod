@@ -13,6 +13,10 @@ export type Statusline = {
   block7dPct?: number;
   block7dLeft?: string;
   mode?: string;
+  busy?: boolean;
+  busyVerb?: string;
+  busySeconds?: number;
+  busyTokens?: string;
 };
 
 const SEP_RE = /\s*│\s*/u;
@@ -24,7 +28,29 @@ const TIME_RE = /⏱\s+(\S+)/u;
 const CTX_RE = /◈\s*ctx\s*\[[^\]]*\]\s*(\d+)\s*%/u;
 const H5_RE = /⧗\s*5h\s*\[[^\]]*\]\s*(\d+)\s*%(?:\s*↺\s*(\S+))?/u;
 const D7_RE = /⧗\s*7d\s*\[[^\]]*\]\s*(\d+)\s*%(?:\s*↺\s*(\S+))?/u;
-const MODE_RE = /⏵⏵\s+(.+?)(?:\s+\(.*\))?\s*$/u;
+// Claude Code prefixes the mode line with a mode-specific symbol:
+//   "⏸ plan mode on …"           (plan)
+//   "⏵⏵ accept edits on …"       (accept edits / auto-accept)
+//   "⏵⏵ bypass permissions on …" (yolo / bypass)
+// Earlier releases only used ⏵⏵, so we match either prefix.
+const MODE_RE = /(?:⏸|⏵⏵)\s+(.+?)(?:\s+\(.*\))?\s*$/u;
+// Claude Code's "thinking" line: a rotating spinner glyph + an -ing verb +
+// ellipsis, followed by an elapsed-time / token pill. Real-world variants:
+//   "✻ Pondering… (12s · ↑ 3.2k tokens · esc to interrupt)"
+//   "✳ Levitating… (17s · still thinking with xhigh effort)"
+//   "✶ Cogitating… (5s · ⚒ 1.8k tokens)"
+// Detection ORs three signals — any one is enough — because the trailing
+// pill format keeps shifting between releases (esc to interrupt / still
+// thinking / no tail at all). The spinner-glyph + verb pair is the most
+// stable; the literal phrases are belt-and-suspenders.
+const BUSY_INTERRUPT_RE = /esc\s+to\s+interrupt/i;
+const BUSY_THINKING_RE = /still\s+thinking/i;
+// Glyph class covers the dingbat-stars block (U+2730–U+273F: ✰✱✲✳✴✵✶✷✸✹✺✻✼✽✾✿)
+// plus the sparkle / atom / filled-circle glyphs Claude rotates through.
+const BUSY_VERB_RE =
+  /(?:^|\s)[●⚛✨✰-✿]\s+([A-Z][a-zA-Z]+(?:ing|ed))(?:…|\.{2,}|\s)/u;
+const BUSY_SECONDS_RE = /\(\s*(\d+)\s*s\b/u;
+const BUSY_TOKENS_RE = /([\d.,]+\s*[kmb]?)\s*tokens?/iu;
 
 function parseLines(lines: string[]): Statusline {
   const s: Statusline = {};
@@ -73,7 +99,22 @@ function parseLines(lines: string[]): Statusline {
 
     const mode = line.match(MODE_RE);
     if (mode) s.mode = mode[1].trim();
+
+    const verbMatch = line.match(BUSY_VERB_RE);
+    const isBusyLine =
+      verbMatch != null ||
+      BUSY_INTERRUPT_RE.test(line) ||
+      BUSY_THINKING_RE.test(line);
+    if (isBusyLine) {
+      s.busy = true;
+      if (verbMatch) s.busyVerb = verbMatch[1];
+      const secs = line.match(BUSY_SECONDS_RE);
+      if (secs) s.busySeconds = Number(secs[1]);
+      const tok = line.match(BUSY_TOKENS_RE);
+      if (tok) s.busyTokens = tok[1].replace(/\s+/g, "");
+    }
   }
+  if (s.busy == null) s.busy = false;
   return s;
 }
 

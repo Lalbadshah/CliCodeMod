@@ -37,6 +37,11 @@ export type SessionInfo = {
   block7dPct?: number;
   block7dLeft?: string;
   mode?: string;
+  busy: boolean;
+  busyVerb?: string;
+  busySeconds?: number;
+  busyTokens?: string;
+  busyStartedAt?: number;
 
   nowMs: number;
   timeHHMM: string;
@@ -45,6 +50,7 @@ export type SessionInfo = {
 
   title?: string;
   lastPrompt?: string;
+  terminalTitle?: string;
 
   aggregates: Readonly<SessionAggregates>;
 };
@@ -156,10 +162,21 @@ const PROMPT_RE = /^[\s\u2500-\u257F]*[>›]\s+(\S.*?)\s*$/u;
 // screens ("> /help for help"). Filter those since they aren't user turns.
 const PROMPT_REJECT_RE = /^(?:\/help|\/clear|for help|Try "|Press)/i;
 
+// The lazy `(\S.*?)` capture also swallows the right border when the prompt
+// sits inside Claude's framed input box ("│ > my prompt          │"). Strip
+// any trailing whitespace + box-drawing run, plus a blinking block-cursor
+// glyph if the user is mid-typing.
+const PROMPT_TAIL_RE = /[\s─-╿]+$/u;
+const PROMPT_CURSOR_RE = /[▀-▟]+$/u;
+
 function extractPrompt(line: string): string | undefined {
   const m = line.match(PROMPT_RE);
   if (!m) return undefined;
-  const text = m[1].trim();
+  const text = m[1]
+    .replace(PROMPT_TAIL_RE, "")
+    .replace(PROMPT_CURSOR_RE, "")
+    .replace(PROMPT_TAIL_RE, "")
+    .trim();
   if (text.length < 2) return undefined;
   if (PROMPT_REJECT_RE.test(text)) return undefined;
   return text;
@@ -215,7 +232,30 @@ export function createSessionBridge(term: Terminal, bus: TerminalBus): SessionBr
   let latest: Statusline = {};
   const promptCache: { title?: string; scannedTo: number } = { scannedTo: 0 };
   let prompts: ScrapedPrompts = {};
+  let terminalTitle: string | undefined;
+  let busyStartedAt: number | undefined;
+  // Active tool ids tracked off the profile parser stream. We OR this
+  // against the statusline-derived busy flag so `info.busy` stays accurate
+  // even for agents that don't print "esc to interrupt" or render a
+  // spinner row (mock replay, codex, custom binaries).
+  const activeTools = new Set<string>();
+  for (const e of bus.toolSnapshot()) {
+    if (e.type === "tool_start") activeTools.add(e.id);
+    else if (e.type === "tool_end") activeTools.delete(e.toolId);
+  }
+  if (activeTools.size > 0) busyStartedAt = Date.now();
   let snap: SessionInfo = build();
+
+  function recomputeBusyEdge(): void {
+    const wasBusy = snap.busy;
+    const nowBusy = computeBusy();
+    if (nowBusy && !wasBusy) busyStartedAt = Date.now();
+    if (!nowBusy && wasBusy) busyStartedAt = undefined;
+  }
+
+  function computeBusy(): boolean {
+    return latest.busy === true || activeTools.size > 0;
+  }
 
   function build(): SessionInfo {
     const now = new Date();
@@ -243,12 +283,18 @@ export function createSessionBridge(term: Terminal, bus: TerminalBus): SessionBr
       block7dPct: latest.block7dPct,
       block7dLeft: latest.block7dLeft,
       mode: latest.mode,
+      busy: computeBusy(),
+      busyVerb: latest.busyVerb,
+      busySeconds: latest.busySeconds,
+      busyTokens: latest.busyTokens,
+      busyStartedAt,
       nowMs: now.getTime(),
       timeHHMM: fmtTime(now, false),
       timeHHMMSS: fmtTime(now, true),
       statusTime: latest.time,
       title: prompts.title,
       lastPrompt: prompts.lastPrompt,
+      terminalTitle,
       aggregates: { ...shared.aggregates },
     };
   }
@@ -275,6 +321,8 @@ export function createSessionBridge(term: Terminal, bus: TerminalBus): SessionBr
     if (shared.aggregates.firstSeenAt == null) shared.aggregates.firstSeenAt = now;
     shared.aggregates.lastUpdatedAt = now;
 
+    recomputeBusyEdge();
+
     if (hasClaudeStatusSignals(s)) detectedClaude = true;
 
     const tokens = parseTokensLabel(s.tokens);
@@ -298,6 +346,34 @@ export function createSessionBridge(term: Terminal, bus: TerminalBus): SessionBr
       shared.prevCost = cost;
     }
 
+    emit();
+  });
+
+  const stopTool = bus.onTool((e) => {
+    if (disposed) return;
+    let changed = false;
+    if (e.type === "tool_start") {
+      if (!activeTools.has(e.id)) {
+        activeTools.add(e.id);
+        changed = true;
+      }
+    } else if (e.type === "tool_end") {
+      if (activeTools.delete(e.toolId)) changed = true;
+    }
+    if (!changed) return;
+    recomputeBusyEdge();
+    emit();
+  });
+
+  // OSC 0/2 — the shell or agent advertises a window title. Claude Code
+  // doesn't usually emit one, but bash/zsh passthrough and tmux do, and
+  // Cursor-style wrappers sometimes set a useful "claude — <project>"
+  // string. Use it as a fallback when there's no scraped user turn yet.
+  const titleDisp = term.onTitleChange((t) => {
+    if (disposed) return;
+    const next = sanitizeTerminalTitle(t);
+    if (next === terminalTitle) return;
+    terminalTitle = next;
     emit();
   });
 
@@ -332,7 +408,23 @@ export function createSessionBridge(term: Terminal, bus: TerminalBus): SessionBr
       disposed = true;
       listeners.clear();
       window.clearInterval(tick);
+      titleDisp.dispose();
+      stopTool();
       stopStatus();
     },
   };
+}
+
+// Strip noisy prefixes ("user@host: ", "zsh — ", etc.) and trim. Returns
+// undefined for empty / generic shell titles so callers can fall through
+// to other signals.
+function sanitizeTerminalTitle(raw: string): string | undefined {
+  let t = raw.replace(/[ -]/g, "").trim();
+  if (!t) return undefined;
+  // Drop a leading "user@host:cwd " breadcrumb that bash/zsh PROMPT_COMMAND
+  // tends to emit — keep only the tail (often the running command).
+  const colon = t.match(/^[\w.-]+@[\w.-]+:[^\s]+\s+(.+)$/);
+  if (colon) t = colon[1].trim();
+  if (!t || /^(bash|zsh|sh|fish|tmux|pty)$/i.test(t)) return undefined;
+  return t.length > 140 ? t.slice(0, 139).trimEnd() + "…" : t;
 }

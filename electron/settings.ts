@@ -68,9 +68,48 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
   await fs.writeFile(path, JSON.stringify(settings, null, 2), "utf8");
 }
 
-export async function patchSettings(patch: Partial<AppSettings>): Promise<AppSettings | null> {
+export type SettingsPatch = Omit<Partial<AppSettings>, "llm" | "windowBounds"> & {
+  llm?: Partial<LlmSettings> | null;
+  windowBounds?: Partial<WindowBounds> | null;
+};
+
+function deepMergeSettings(cur: AppSettings, patch: SettingsPatch): AppSettings {
+  const next: AppSettings = { ...cur };
+  for (const k of Object.keys(patch) as (keyof AppSettings)[]) {
+    if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+    const v = patch[k];
+    if (k === "llm") {
+      const pv = v as Partial<LlmSettings> | null | undefined;
+      if (pv === null) { next.llm = undefined; continue; }
+      if (pv === undefined) continue;
+      const base: LlmSettings = cur.llm ?? { enabled: true };
+      const merged: LlmSettings = { ...base };
+      if (Object.prototype.hasOwnProperty.call(pv, "enabled") && pv.enabled !== undefined) {
+        merged.enabled = pv.enabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(pv, "activeModelId")) {
+        merged.activeModelId = pv.activeModelId ?? undefined;
+      }
+      if (Object.prototype.hasOwnProperty.call(pv, "modelsDir")) {
+        merged.modelsDir = pv.modelsDir ?? undefined;
+      }
+      next.llm = merged;
+    } else if (k === "windowBounds") {
+      const pv = v as Partial<WindowBounds> | null | undefined;
+      if (pv === null) { next.windowBounds = undefined; continue; }
+      if (pv === undefined) continue;
+      next.windowBounds = { ...(cur.windowBounds ?? {} as WindowBounds), ...pv };
+    } else {
+      if (v === undefined) continue;
+      (next as Record<string, unknown>)[k] = v as unknown;
+    }
+  }
+  return next;
+}
+
+export async function patchSettings(patch: SettingsPatch): Promise<AppSettings | null> {
   const cur = (await loadSettings()) ?? defaultSettings();
-  const next: AppSettings = { ...cur, ...patch };
+  const next = deepMergeSettings(cur, patch);
   await saveSettings(next);
   return next;
 }

@@ -23,12 +23,18 @@ export const BRAINROT_SYSTEM =
 // brainrot mod that wants a full sentence (12-20 words) instead of a short
 // phrase, so it gets its own system so the short-output instruction in
 // BRAINROT_SYSTEM doesn't leak into the 5 other callers.
+// `/no_think` is a Qwen3 chat-template directive that disables
+// `<think>...</think>` reasoning blocks. Without it, Qwen3.5-4B-Instruct
+// burns its entire token budget inside an unclosed `<think>` block and
+// `stripThinkBlocks` zeros the output — the bubble then never sees an LLM
+// answer and only the static fallbacks render.
 export const BRAINROT_BUBBLE_SYSTEM =
-  "You are a chronically-online gen-z brainrot commentator watching someone code. " +
+  "/no_think You are a chronically-online gen-z brainrot commentator watching someone code. " +
   "Your job: one short, funny, brainrot-flavored sentence reacting to the actual terminal session. " +
   "Use slang like 'fr fr', 'no cap', 'skibidi', 'sigma', 'rizz', 'bussin', 'ohio', 'cooked', 'goated'. " +
   "Keep it to ONE sentence, 12-20 words, lowercase, no emoji, no hashtags, no quotes. " +
-  "Land the joke on something actually in the transcript. Never explain yourself.";
+  "Land the joke on something actually in the transcript. Never explain yourself. " +
+  "Do not use <think> blocks — answer directly with just the sentence.";
 
 export const PET_SYSTEM =
   "You are a tiny animal pet sitting on the corner of a developer's screen. " +
@@ -69,7 +75,7 @@ export function buildBrainrotBubble(
   if (txt) {
     lines.push("full terminal transcript (tail of the whole session, read like a log):");
     lines.push("---");
-    lines.push(clip(txt, 3800));
+    lines.push(clip(txt, 16_000));
     lines.push("---");
     lines.push("your sentence should react to something real in that transcript.");
   } else {
@@ -199,6 +205,56 @@ export function buildBrainrotMoodPick(
     `Context: ${buildSessionSummary(info)}`,
     `Recent tools: ${recentTools.slice(0, 6).join(", ") || "(none)"}`,
     "Rules: respond with JUST the tag, nothing else. no punctuation, no quotes.",
+  ].join("\n");
+}
+
+// Editorial mod headline. Voice: a vintage broadsheet sub-editor. The
+// output replaces the giant serif title in the editorial UI when there's
+// real session signal — keep it tight (4-9 words), title-cased, no period.
+export const EDITORIAL_HEADLINE_SYSTEM =
+  "You are a deadline sub-editor at a vintage broadsheet. " +
+  "You write short, punchy headlines in AP-style Title Case. " +
+  "Active voice. Concrete nouns. Never hedge. Never use a period. " +
+  "Never use quotes, emoji, hashtags, or rhetorical questions.";
+
+export function buildEditorialHeadline(
+  info: SessionInfo,
+  prompt: string | undefined,
+  terminalTitle: string | undefined,
+  transcript: string | undefined,
+): string {
+  const lines: string[] = [
+    "Write ONE newspaper headline (4-9 words) about this coding session.",
+    "Title Case. No trailing period. No quotes. No emoji. No preamble.",
+    "Be concrete: name the language, file, or task — never 'Working On Project'.",
+    "Active voice. Present tense. Lead with the verb or subject.",
+    `Session: ${buildSessionSummary(info)}`,
+  ];
+  if (prompt) lines.push(`First user prompt: "${clip(prompt, 240)}"`);
+  if (terminalTitle && terminalTitle !== prompt) {
+    lines.push(`Terminal title: "${clip(terminalTitle, 120)}"`);
+  }
+  if (transcript) {
+    lines.push("Recent terminal tail (most-recent activity):");
+    lines.push("---");
+    lines.push(clip(transcript, 2400));
+    lines.push("---");
+  }
+  lines.push("Output ONLY the headline — nothing else. /no_think");
+  return lines.join("\n");
+}
+
+// Idle-state headline for the AWAITING placeholder. Used only when there's
+// no scraped prompt and no terminal title yet — gives the broadsheet a
+// flavorful "stand-by" line instead of the static "The conversation has
+// not yet begun."
+export function buildEditorialIdleDeck(info: SessionInfo): string {
+  return [
+    "Write ONE short newsroom standfirst (max 10 words) for a coding session that has not started yet.",
+    "Sentence case. No trailing period. Evocative, not cute. No quotes, emoji, or hashtags.",
+    "Examples: 'Editor at the desk, copy on the way' / 'Presses warm; reporter en route'.",
+    `Session: ${buildSessionSummary(info)}`,
+    "Output ONLY the standfirst.",
   ].join("\n");
 }
 

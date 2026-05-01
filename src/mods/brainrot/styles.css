@@ -813,26 +813,11 @@
 
 .br-tv-dials {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   margin-top: 8px;
 }
-.br-tv-channels { display: flex; gap: 4px; }
-.br-tv-ch {
-  width: 28px;
-  height: 22px;
-  font-size: 9px;
-  font-family: var(--mono);
-  background: var(--paper);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  cursor: pointer;
-  font-weight: 700;
-  padding: 0;
-  line-height: 1;
-}
-.br-tv-ch.is-active { background: var(--pink); }
-.br-tv-knobs { display: flex; gap: 4px; }
+.br-tv-knobs { display: flex; gap: 6px; }
 .br-tv-knob {
   width: 14px;
   height: 14px;
@@ -890,6 +875,28 @@
   min-height: 58px;
 }
 .br-stat.is-light { color: #fff; }
+
+/* Plan mode = scheming, not cooking. Desat the stickers + add a soft
+   diagonal stripe so the bottom bar reads as a planning surface. */
+.br-stats.is-mode-plan {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 216, 58, 0.10) 0 14px,
+      rgba(255, 216, 58, 0.04) 14px 28px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(58, 216, 255, 0.10),
+      rgba(255, 216, 58, 0.10)
+    );
+}
+.br-stats.is-mode-plan .br-stat {
+  filter: saturate(0.55) brightness(0.92);
+}
+.br-stats.is-mode-plan .br-stat-val {
+  letter-spacing: -0.3px;
+}
 .br-stat-lab {
   font-family: var(--comic);
   font-size: 11px;
